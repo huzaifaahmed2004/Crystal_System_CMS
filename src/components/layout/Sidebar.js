@@ -1,0 +1,86 @@
+import React from 'react';
+
+const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
+  const icons = {
+    'dashboard': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/>
+      </svg>
+    ),
+    'process-management': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 3h12v4H6V3zm0 7h12v4H6v-4zm0 7h12v4H6v-4z" fill="currentColor"/>
+      </svg>
+    ),
+    'task-management': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M9 11l3 3L22 4l-2-2-8 8-3-3-2 2 5 5zM2 20h20v2H2v-2z" fill="currentColor"/>
+      </svg>
+    ),
+    'job-management': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M14 6V4H10v2H4v4h16V6h-6zM4 12v8h16v-8H4z" fill="currentColor"/>
+      </svg>
+    ),
+    'function-management': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7l3-7z" fill="currentColor"/>
+      </svg>
+    ),
+    'organization-management': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 11h18v10H3V11zm2-6h14v4H5V5z" fill="currentColor"/>
+      </svg>
+    ),
+    'ai-processes': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2a5 5 0 015 5v1h1a4 4 0 110 8h-1v1a5 5 0 11-10 0v-1H6a4 4 0 110-8h1V7a5 5 0 015-5z" fill="currentColor"/>
+      </svg>
+    ),
+    'user-access': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 5.5V22h18v-2.5C21 16.5 17 14 12 14z" fill="currentColor"/>
+      </svg>
+    ),
+    'layout-management': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 3h18v6H3V3zm0 8h8v10H3V11zm10 0h8v10h-8V11z" fill="currentColor"/>
+      </svg>
+    )
+  };
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'process-management', label: 'Process Management' },
+    { id: 'task-management', label: 'Task Management' },
+    { id: 'job-management', label: 'Job Management' },
+    { id: 'function-management', label: 'Function Management' },
+    { id: 'organization-management', label: 'Organization Management' },
+    { id: 'ai-processes', label: 'AI-Generated Processes' },
+    { id: 'user-access', label: 'User & Access Control' },
+    { id: 'layout-management', label: 'Layout Management' }
+  ];
+
+  return (
+    <aside className={`dashboard-sidebar ${collapsed ? 'collapsed' : ''}`}>
+      <nav className="sidebar-nav">
+        <ul className="nav-list">
+          {menuItems.map((item) => (
+            <li key={item.id} className="nav-item">
+              <button
+                className={`nav-button ${activeSection === item.id ? 'active' : ''}`}
+                onClick={() => setActiveSection(item.id)}
+                title={collapsed ? item.label : ''}
+              >
+                <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                {!collapsed && <span className="nav-label">{item.label}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
+  );
+};
+
+export default Sidebar;

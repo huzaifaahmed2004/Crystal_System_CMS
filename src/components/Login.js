@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const Login = () => {
+const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -15,17 +15,26 @@ const Login = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: Implement actual authentication logic
-    console.log('Login attempt:', formData);
-    alert('Login functionality will be implemented in next steps!');
+    // Basic authentication - in real app, this would call an API
+    if (formData.email && formData.password) {
+      const userData = {
+        name: formData.email.split('@')[0], // Use email prefix as name
+        email: formData.email
+      };
+      onLogin(userData);
+    } else {
+      alert('Please enter both email and password');
+    }
   };
 
   return (
     <div className="auth-container login-container">
       <div className="auth-card">
         <div className="auth-header">
-          <div className="auth-icon">
-            🔐
+          <div className="auth-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M17 8V7a5 5 0 10-10 0v1H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2v-9a2 2 0 00-2-2h-2zM9 7a3 3 0 116 0v1H9V7z" fill="currentColor"/>
+            </svg>
           </div>
           <h2 className="auth-title">
             Sign in to your CMS
@@ -82,17 +91,11 @@ const Login = () => {
             </label>
           </div>
 
-          <div className="forgot-password">
-            <a href="#" onClick={(e) => e.preventDefault()}>
-              Forgot your password?
-            </a>
-          </div>
-
           <button
             type="submit"
             className="auth-button"
           >
-            🔓 Sign in
+            Sign in
           </button>
         </form>
       </div>

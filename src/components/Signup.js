@@ -146,13 +146,21 @@ const Signup = ({ onToggleAuth }) => {
             />
             <label htmlFor="agree-terms" className="checkbox-label">
               I agree to the{' '}
-              <a href="#" onClick={(e) => e.preventDefault()}>
+              <button 
+                type="button" 
+                className="link-button"
+                onClick={() => console.log('Terms of Service clicked')}
+              >
                 Terms of Service
-              </a>{' '}
+              </button>{' '}
               and{' '}
-              <a href="#" onClick={(e) => e.preventDefault()}>
+              <button 
+                type="button" 
+                className="link-button"
+                onClick={() => console.log('Privacy Policy clicked')}
+              >
                 Privacy Policy
-              </a>
+              </button>
             </label>
           </div>
 
