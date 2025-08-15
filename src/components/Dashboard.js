@@ -9,9 +9,11 @@ import AIProcessesPage from '../pages/AIProcessesPage';
 import UserAccessControlPage from '../pages/UserAccessControlPage';
 import LayoutManagementPage from '../pages/LayoutManagementPage';
 import OrganizationManagementPage from '../pages/OrganizationManagementPage';
+import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [layoutCompanyId, setLayoutCompanyId] = useState(null);
 
   const renderContent = () => {
     switch (activeSection) {
@@ -45,9 +47,11 @@ const Dashboard = ({ user, onLogout }) => {
       activeSection={activeSection}
       setActiveSection={setActiveSection}
     >
-      <div className="page-router">
-        {renderContent()}
-      </div>
+      <AppProvider value={{ setActiveSection, layoutCompanyId, setLayoutCompanyId }}>
+        <div className="page-router">
+          {renderContent()}
+        </div>
+      </AppProvider>
     </MainLayout>
   );
 };

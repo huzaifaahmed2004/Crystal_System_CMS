@@ -1,50 +1,40 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAppContext } from '../context/AppContext';
+import { getCompaniesWithStats } from '../services/organizationService';
 
 const OrganizationManagementPage = () => {
-  const orgs = useMemo(
-    () => [
-      {
-        id: 'org-1',
-        name: 'Acme Holdings',
-        code: 'ACM',
-        departments: 8,
-        jobs: 42,
-        functions: 17,
-        processes: 29,
-        owner: 'Operations',
-        description: 'Parent company overseeing manufacturing and logistics.'
-      },
-      {
-        id: 'org-2',
-        name: 'Acme Manufacturing',
-        code: 'ACM-MFG',
-        departments: 5,
-        jobs: 21,
-        functions: 9,
-        processes: 14,
-        owner: 'Production',
-        description: 'Manufacturing division managing plant operations.'
-      },
-      {
-        id: 'org-3',
-        name: 'Acme Logistics',
-        code: 'ACM-LOG',
-        departments: 4,
-        jobs: 18,
-        functions: 7,
-        processes: 11,
-        owner: 'Supply Chain',
-        description: 'Logistics and distribution across regions.'
+  const [orgs, setOrgs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState('');
+  const { setActiveSection, setLayoutCompanyId } = useAppContext();
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await getCompaniesWithStats();
+        if (mounted) setOrgs(data);
+      } catch (e) {
+        if (mounted) setError('Failed to load organizations');
+      } finally {
+        if (mounted) setLoading(false);
       }
-    ],
-    []
-  );
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const filteredOrgs = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return orgs;
+    return orgs.filter(o => (o.name || '').toLowerCase().includes(term));
+  }, [orgs, search]);
 
   return (
     <div className="page-container">
       <div className="page-header">
         <h1 className="page-title">Organization Management</h1>
-        <p className="page-subtitle">Manage organizations, their departments, functions, jobs, and processes. (Dummy data)</p>
+        <p className="page-subtitle">Manage companies and view their related structures and workloads.</p>
       </div>
 
       <div className="page-content">
@@ -52,8 +42,10 @@ const OrganizationManagementPage = () => {
           <div style={{ position: 'relative' }}>
             <input
               type="text"
-              placeholder="Search organizations"
+              placeholder="Search companies"
               aria-label="Search organizations"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               style={{
                 padding: '0.6rem 2.5rem 0.6rem 0.9rem',
                 border: '1px solid #e5e7eb',
@@ -68,12 +60,7 @@ const OrganizationManagementPage = () => {
               </svg>
             </span>
           </div>
-          <select aria-label="Filter by owner" style={{ padding: '0.6rem 0.9rem', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-            <option>All Owners</option>
-            <option>Operations</option>
-            <option>Production</option>
-            <option>Supply Chain</option>
-          </select>
+          {/* Future: owner/created_by filter can go here */}
           <button className="primary-btn" type="button" aria-label="Add organization" style={{
             padding: '0.6rem 1rem',
             borderRadius: 8,
@@ -95,9 +82,20 @@ const OrganizationManagementPage = () => {
           </button>
         </div>
 
+        {loading && (
+          <div style={{ padding: '1rem', color: '#64748b' }}>Loading companies…</div>
+        )}
+        {error && (
+          <div style={{ padding: '1rem', color: '#b91c1c' }}>{error}</div>
+        )}
+
+        {!loading && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-          {orgs.map((o) => (
-            <div key={o.id} style={{
+          {filteredOrgs.length === 0 ? (
+            <div style={{ color: '#64748b' }}>No companies found.</div>
+          ) : (
+          filteredOrgs.map((o) => (
+            <div key={o.company_id || o.id} style={{
               border: '1px solid #e5e7eb',
               borderRadius: 12,
               padding: '1rem',
@@ -113,7 +111,9 @@ const OrganizationManagementPage = () => {
                   </span>
                   <div>
                     <div style={{ fontWeight: 600, color: '#111827' }}>{o.name}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{o.code} · Owner: {o.owner}</div>
+                    {o.code || o.owner ? (
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{o.code}{o.code && o.owner ? ' · ' : ''}{o.owner ? `Owner: ${o.owner}` : ''}</div>
+                    ) : null}
                   </div>
                 </div>
                 <button type="button" aria-label={`Manage ${o.name}`} style={{
@@ -131,17 +131,46 @@ const OrganizationManagementPage = () => {
                 </button>
               </div>
 
-              <p style={{ color: '#374151', fontSize: 14, margin: '0 0 0.75rem 0' }}>{o.description}</p>
+              {o.description && (
+                <p style={{ color: '#374151', fontSize: 14, margin: '0 0 0.75rem 0' }}>{o.description}</p>
+              )}
 
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div style={{ background: '#eff6ff', color: '#1e40af', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Departments: {o.departments}</div>
-                <div style={{ background: '#ecfeff', color: '#155e75', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Jobs: {o.jobs}</div>
-                <div style={{ background: '#f0fdf4', color: '#166534', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Functions: {o.functions}</div>
-                <div style={{ background: '#fef3c7', color: '#92400e', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Processes: {o.processes}</div>
+                <div style={{ background: '#eff6ff', color: '#1e40af', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Buildings: {o.stats?.buildings ?? 0}</div>
+                <div style={{ background: '#ecfeff', color: '#155e75', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Floors: {o.stats?.floors ?? 0}</div>
+                <div style={{ background: '#fefce8', color: '#92400e', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Rooms: {o.stats?.rooms ?? 0}</div>
+                <div style={{ background: '#f0fdf4', color: '#166534', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Functions: {o.stats?.functions ?? 0}</div>
+                <div style={{ background: '#e0f2fe', color: '#075985', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Jobs: {o.stats?.jobs ?? 0}</div>
+                <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.35rem 0.6rem', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>Processes: {o.stats?.processes ?? 0}</div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => { setLayoutCompanyId(o.company_id || o.id); setActiveSection('layout-management'); }}
+                  className="primary-btn"
+                  style={{
+                    padding: '0.5rem 0.8rem',
+                    borderRadius: 8,
+                    border: 'none',
+                    color: 'white',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    boxShadow: '0 6px 16px rgba(99,102,241,0.25)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16v2H4zM4 11h10v2H4zM4 15h12v2H4z" fill="currentColor"/></svg>
+                  Manage Layout
+                </button>
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
+        )}
       </div>
     </div>
   );

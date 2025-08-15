@@ -1,214 +1,73 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import '../styles/function-management.css';
+import { getCompaniesLite, getBuildingByCompany } from '../services/layoutService';
+import { getFunctionTree } from '../services/functionService';
 
 const FunctionManagementPage = () => {
-  // Dummy data for functions with hierarchical structure
-  const [functions] = useState([
-    {
-      id: 1,
-      name: "Customer Management",
-      description: "Handle all customer-related operations and services",
-      type: "Core Function",
-
-      createdDate: "2024-01-01",
-      lastModified: "2024-01-20",
-      owner: "Customer Success Team",
-      subFunctions: [
-        {
-          id: 11,
-          name: "Customer Onboarding",
-          description: "New customer registration and setup processes",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 12,
-          name: "Customer Support",
-          description: "Customer service and issue resolution",
-          type: "Sub-Function",
-          status: "Active"
-        }
-      ],
-      assignedJobs: [
-        { id: 1, name: "Customer Onboarding", status: "Active" },
-        { id: 7, name: "Customer Support Operations", status: "Active" }
-      ]
-    },
-    {
-      id: 2,
-      name: "Finance Operations",
-      description: "Manage financial processes, accounting, and reporting",
-      type: "Core Function",
-
-      createdDate: "2024-01-01",
-      lastModified: "2024-01-18",
-      owner: "Finance Team",
-      subFunctions: [
-        {
-          id: 21,
-          name: "Invoice Processing",
-          description: "Handle invoice creation, validation, and processing",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 22,
-          name: "Payment Management",
-          description: "Process payments and manage financial transactions",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 23,
-          name: "Financial Reporting",
-          description: "Generate financial reports and analytics",
-          type: "Sub-Function",
-        }
-      ],
-      assignedJobs: [
-        { id: 2, name: "Financial Processing", status: "Active" }
-      ]
-    },
-    {
-      id: 3,
-      name: "IT Operations",
-      description: "Maintain IT infrastructure and system reliability",
-      type: "Core Function",
-
-      createdDate: "2024-01-01",
-      lastModified: "2024-01-25",
-      owner: "IT Team",
-      subFunctions: [
-        {
-          id: 31,
-          name: "System Maintenance",
-          description: "Regular system updates and maintenance tasks",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 32,
-          name: "Data Backup",
-          description: "Automated data backup and recovery procedures",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 33,
-          name: "Security Management",
-          description: "System security monitoring and updates",
-          type: "Sub-Function",
-          status: "Active"
-        }
-      ],
-      assignedJobs: [
-        { id: 3, name: "IT Maintenance", status: "Active" }
-      ]
-    },
-    {
-      id: 4,
-      name: "Manufacturing",
-      description: "Production processes and quality control operations",
-      type: "Core Function",
-
-      createdDate: "2024-01-01",
-      lastModified: "2024-01-22",
-      owner: "Production Team",
-      subFunctions: [
-        {
-          id: 41,
-          name: "Quality Control",
-          description: "Product quality inspection and testing",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 42,
-          name: "Production Planning",
-          description: "Manufacturing schedule and resource planning",
-          type: "Sub-Function",
-          status: "Active"
-        }
-      ],
-      assignedJobs: [
-        { id: 4, name: "Production Quality", status: "Active" }
-      ]
-    },
-    {
-      id: 5,
-      name: "Human Resources",
-      description: "Employee management and HR operations",
-      type: "Core Function",
-
-      createdDate: "2024-01-01",
-      lastModified: "2024-01-15",
-      owner: "HR Team",
-      subFunctions: [
-        {
-          id: 51,
-          name: "Employee Onboarding",
-          description: "New employee registration and orientation",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 52,
-          name: "Performance Management",
-          description: "Employee performance tracking and reviews",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 53,
-          name: "Employee Offboarding",
-          description: "Employee departure procedures and documentation",
-          type: "Sub-Function",
-        }
-      ],
-      assignedJobs: [
-        { id: 5, name: "HR Operations", status: "Active" }
-      ]
-    },
-    {
-      id: 6,
-      name: "Marketing",
-      description: "Marketing campaigns and brand management",
-      type: "Core Function",
-
-      createdDate: "2024-01-01",
-      lastModified: "2024-01-23",
-      owner: "Marketing Team",
-      subFunctions: [
-        {
-          id: 61,
-          name: "Campaign Management",
-          description: "Marketing campaign planning and execution",
-          type: "Sub-Function",
-          status: "Active"
-        },
-        {
-          id: 62,
-          name: "Content Creation",
-          description: "Marketing content and asset development",
-          type: "Sub-Function",
-          status: "Active"
-        }
-      ],
-      assignedJobs: [
-        { id: 6, name: "Marketing Creative", status: "Active" }
-      ]
-    }
-  ]);
+  // DB-backed state
+  const [functions, setFunctions] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [building, setBuilding] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // State management
   const [searchTerm, setSearchTerm] = useState('');
 
   const [typeFilter, setTypeFilter] = useState('All');
-  const [expandedFunctions, setExpandedFunctions] = useState(new Set([1, 2, 3])); // Default expanded
+  const [expandedFunctions, setExpandedFunctions] = useState(new Set([])); 
   const [selectedFunction, setSelectedFunction] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingFunction, setEditingFunction] = useState(null);
   const [parentFunction, setParentFunction] = useState(null);
+
+  // Load companies initially
+  useEffect(() => {
+    (async () => {
+      try {
+        const cs = await getCompaniesLite();
+        setCompanies(cs);
+        const initialCompanyId = cs[0]?.company_id || cs[0]?.id || '';
+        setSelectedCompanyId(initialCompanyId || '');
+      } catch (e) {
+        setError('Failed to load companies');
+      }
+    })();
+  }, []);
+
+  // When company changes, fetch building and its functions
+  useEffect(() => {
+    if (!selectedCompanyId) return;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const b = await getBuildingByCompany(selectedCompanyId);
+        setBuilding(b);
+        const list = await getFunctionTree(b?.building_id);
+        // Map API to UI structure (no subFunctions in current DB schema)
+        const mapped = list.map(f => ({
+          id: f.function_id,
+          name: f.name,
+          description: f.description || '',
+          type: 'Core Function',
+          createdDate: '',
+          lastModified: '',
+          owner: '',
+          subFunctions: [],
+          assignedJobs: (f.jobs || []).map(j => ({ id: j.job_id, name: j.name, status: 'Active' })),
+        }));
+        setFunctions(mapped);
+        // Expand all by default when switching context
+        setExpandedFunctions(new Set(mapped.map(m => m.id)));
+      } catch (e) {
+        setError('Failed to load functions');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [selectedCompanyId]);
 
   // Helper function to get all functions including sub-functions
   const getAllFunctions = (functionsList) => {
@@ -401,11 +260,29 @@ const FunctionManagementPage = () => {
             <h2 className="page-title">Function Management</h2>
             <p className="page-subtitle">Manage and maintain functions with interactive tree view</p>
           </div>
-          <button className="create-btn" onClick={() => handleCreateFunction()}>+ Create New Function</button>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <select
+              value={selectedCompanyId}
+              onChange={(e) => setSelectedCompanyId(e.target.value)}
+              className="filter-select"
+              style={{ minWidth: 220 }}
+            >
+              {companies.map(c => (
+                <option key={c.company_id || c.id} value={c.company_id || c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button className="create-btn" onClick={() => handleCreateFunction()}>+ Create New Function</button>
+          </div>
         </div>
       </div>
       
       <div className="page-content">
+        {error && (
+          <div className="no-results" style={{ color: '#b91c1c', marginBottom: 12 }}>{error}</div>
+        )}
+        {loading && (
+          <div className="no-results" style={{ marginBottom: 12 }}>Loading functions...</div>
+        )}
         {/* Search and Filters */}
         <div className="filters-section">
           <div className="search-box">
