@@ -1,12 +1,15 @@
 // Base API configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+// In development, if no env is provided, we use relative endpoints (""),
+// allowing CRA dev proxy to avoid CORS.
+const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BASE_URL || '';
 
 class ApiService {
   async request(endpoint, options = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = /^https?:\/\//i.test(endpoint) ? endpoint : `${API_BASE_URL}${endpoint}`;
     const config = {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...options.headers,
       },
       ...options,
@@ -16,10 +19,30 @@ class ApiService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        let message = `HTTP error! status: ${response.status}`;
+        try {
+          const ct = response.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const errJson = await response.json();
+            if (errJson && typeof errJson === 'object') {
+              message = errJson.message || errJson.error || JSON.stringify(errJson);
+            }
+          } else {
+            const errText = await response.text();
+            if (errText) message = errText;
+          }
+        } catch (_) {
+          // ignore parse errors, keep default message
+        }
+        throw new Error(message);
       }
-      
-      return await response.json();
+      // Gracefully handle empty bodies (e.g. 204) or non-JSON responses
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return await response.json();
+      }
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
     } catch (error) {
       console.error(`API request failed: ${endpoint}`, error);
       throw error;
@@ -47,10 +70,19 @@ class ApiService {
     });
   }
 
+  // PATCH request
+  async patch(endpoint, data) {
+    return this.request(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   // DELETE request
   async delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' });
   }
 }
 
-export default new ApiService();
+const apiInstance = new ApiService();
+export default apiInstance;

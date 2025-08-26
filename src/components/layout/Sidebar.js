@@ -1,6 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
+  const [openUserAccess, setOpenUserAccess] = useState(false);
+
+  // Keep submenu open when a related section is active
+  useEffect(() => {
+    if (['user-access', 'role-management'].includes(activeSection)) {
+      setOpenUserAccess(true);
+    }
+  }, [activeSection]);
   const icons = {
     'dashboard': (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -67,14 +75,52 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
         <ul className="nav-list">
           {menuItems.map((item) => (
             <li key={item.id} className="nav-item">
-              <button
-                className={`nav-button ${activeSection === item.id ? 'active' : ''}`}
-                onClick={() => setActiveSection(item.id)}
-                title={collapsed ? item.label : ''}
-              >
-                <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
-                {!collapsed && <span className="nav-label">{item.label}</span>}
-              </button>
+              {item.id !== 'user-access' ? (
+                <button
+                  className={`nav-button ${activeSection === item.id ? 'active' : ''}`}
+                  onClick={() => setActiveSection(item.id)}
+                  title={collapsed ? item.label : ''}
+                >
+                  <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                  {!collapsed && <span className="nav-label">{item.label}</span>}
+                </button>
+              ) : (
+                <>
+                  <button
+                    className={`nav-button ${(['user-access', 'role-management'].includes(activeSection)) ? 'active' : ''}`}
+                    onClick={() => setOpenUserAccess((v) => !v)}
+                    title={collapsed ? item.label : ''}
+                  >
+                    <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                    {!collapsed && (
+                      <span className="nav-label" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        {item.label}
+                        <span className={`submenu-caret ${openUserAccess ? 'open' : ''}`} aria-hidden="true">▾</span>
+                      </span>
+                    )}
+                  </button>
+                  {!collapsed && openUserAccess && (
+                    <ul className="nav-sublist" style={{ marginTop: 4, marginLeft: 36 }}>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'user-access' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('user-access')}
+                        >
+                          User
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'role-management' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('role-management')}
+                        >
+                          Roles
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </>
+              )}
             </li>
           ))}
         </ul>

@@ -8,7 +8,6 @@ const FunctionManagementPage = () => {
   const [functions, setFunctions] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
-  const [building, setBuilding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -44,7 +43,6 @@ const FunctionManagementPage = () => {
       setError(null);
       try {
         const b = await getBuildingByCompany(selectedCompanyId);
-        setBuilding(b);
         const list = await getFunctionTree(b?.building_id);
         // Map API to UI structure (no subFunctions in current DB schema)
         const mapped = list.map(f => ({

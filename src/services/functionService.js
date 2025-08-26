@@ -1,10 +1,8 @@
 import api from './api';
 
-const BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
-
 export async function getFunctionsByBuilding(buildingId) {
   try {
-    const res = await api.get(`${BASE}/buildings/${buildingId}/functions`);
+    const res = await api.get(`/buildings/${buildingId}/functions`);
     return Array.isArray(res) ? res : [];
   } catch (e) {
     // Mock fallback
@@ -18,7 +16,7 @@ export async function getFunctionsByBuilding(buildingId) {
 
 export async function getJobsByFunction(functionId) {
   try {
-    const res = await api.get(`${BASE}/functions/${functionId}/jobs`);
+    const res = await api.get(`/functions/${functionId}/jobs`);
     return Array.isArray(res) ? res : [];
   } catch (e) {
     // Mock fallback

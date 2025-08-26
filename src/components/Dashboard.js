@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from './layout/MainLayout';
 import DashboardPage from '../pages/DashboardPage';
 import ProcessManagementPage from '../pages/ProcessManagementPage';
@@ -9,11 +9,21 @@ import AIProcessesPage from '../pages/AIProcessesPage';
 import UserAccessControlPage from '../pages/UserAccessControlPage';
 import LayoutManagementPage from '../pages/LayoutManagementPage';
 import OrganizationManagementPage from '../pages/OrganizationManagementPage';
+import RoleManagementPage from '../pages/RoleManagementPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState(() => sessionStorage.getItem('activeSection') || 'dashboard');
   const [layoutCompanyId, setLayoutCompanyId] = useState(null);
+
+  // Persist active section across refreshes in this session
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('activeSection', activeSection);
+    } catch (_) {
+      // ignore storage errors
+    }
+  }, [activeSection]);
 
   const renderContent = () => {
     switch (activeSection) {
@@ -31,6 +41,8 @@ const Dashboard = ({ user, onLogout }) => {
         return <OrganizationManagementPage />;
       case 'ai-processes':
         return <AIProcessesPage />;
+      case 'role-management':
+        return <RoleManagementPage />;
       case 'user-access':
         return <UserAccessControlPage />;
       case 'layout-management':
