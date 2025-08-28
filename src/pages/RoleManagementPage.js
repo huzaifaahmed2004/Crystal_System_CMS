@@ -4,7 +4,7 @@ import { getRoles, getRoleById, createRole, patchRole, deleteRole, deleteRolesBu
 import Modal from '../components/ui/Modal';
 import FormModal from '../components/ui/FormModal';
 
-const emptyForm = { role_id: '', name: '', description: '' };
+const emptyForm = { name: '', description: '' };
 
 const RoleManagementPage = () => {
   const [roles, setRoles] = useState([]);
@@ -111,14 +111,10 @@ const RoleManagementPage = () => {
     }
   };
 
-  const computeNextRoleId = () => {
-    const ids = roles.map(r => Number(r.role_id)).filter((n) => Number.isInteger(n));
-    const maxId = ids.length ? Math.max(...ids) : 0;
-    return maxId + 1;
-  };
+  // role_id is now auto-incremented by backend; no local id computation needed
 
   const openCreateRole = () => {
-    setCreateForm({ role_id: String(computeNextRoleId()), name: '', description: '' });
+    setCreateForm({ name: '', description: '' });
     setCreateError('');
     setCreating(true);
   };
@@ -132,13 +128,10 @@ const RoleManagementPage = () => {
   const submitCreate = async (e) => {
     e?.preventDefault?.();
     const payload = { 
-      role_id: Number(createForm.role_id),
       name: createForm.name.trim(), 
       description: createForm.description.trim() 
     };
-    if (!Number.isInteger(payload.role_id) || payload.role_id <= 0) { setCreateError('Role ID must be a positive integer'); return; }
     if (!payload.name) { setCreateError('Name is required'); return; }
-    if (roles.some(r => Number(r.role_id) === payload.role_id)) { setCreateError('Role ID already exists'); return; }
     try {
       const created = await createRole(payload);
       const normalized = created?.role_id ? created : (created?.id ? { ...created, role_id: created.id } : created);
@@ -324,10 +317,6 @@ const RoleManagementPage = () => {
     >
       {createError && (<div className="error-banner" style={{ marginBottom: 12 }}>{createError}</div>)}
       <div className="role-card create-card">
-        <div className="field">
-          <label>Role ID</label>
-          <input type="number" min="1" value={createForm.role_id} disabled readOnly />
-        </div>
         <div className="field">
           <label>Name</label>
           <input

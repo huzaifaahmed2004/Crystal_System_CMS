@@ -4,14 +4,16 @@ import '../styles/role-management.css';
 import FormModal from '../components/ui/FormModal';
 import { getUsers, createUser, patchUser, deleteUser } from '../services/userService';
 import { getRoles } from '../services/roleService';
+import { getCompanies } from '../services/companyService';
 
-const emptyCreate = { user_id: '', name: '', email: '', password: '', role_id: '' };
+const emptyCreate = { name: '', email: '', password: '', confirmPassword: '', role_id: '', company_id: '' };
 
 const UserAccessControlPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [companies, setCompanies] = useState([]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreate);
@@ -19,23 +21,30 @@ const UserAccessControlPage = () => {
 
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '', role_id: '' });
+  const [editForm, setEditForm] = useState({ name: '', email: '', role_id: '', company_id: '' });
 
   const roleNameById = useMemo(() => {
     const m = new Map();
     roles.forEach(r => m.set(Number(r.role_id), r.name));
     return m;
   }, [roles]);
+  const companyNameById = useMemo(() => {
+    const m = new Map();
+    companies.forEach(c => m.set(Number(c.company_id), c.name));
+    return m;
+  }, [companies]);
 
   const reload = async () => {
     try {
       setLoading(true);
-      const [u, r] = await Promise.all([
+      const [u, r, c] = await Promise.all([
         getUsers(),
         getRoles(),
+        getCompanies(),
       ]);
       setUsers(Array.isArray(u) ? u : []);
       setRoles(Array.isArray(r) ? r : []);
+      setCompanies(Array.isArray(c) ? c : []);
       setError(null);
     } catch (e) {
       setError(e?.message || 'Failed to load users or roles');
@@ -62,12 +71,17 @@ const UserAccessControlPage = () => {
 
   const startEdit = (user) => {
     setEditingId(user.user_id);
-    setEditForm({ name: user.name || '', email: user.email || '', role_id: String(user.role_id ?? '') });
+    setEditForm({
+      name: user.name || '',
+      email: user.email || '',
+      role_id: String(user.role_id ?? ''),
+      company_id: String(user.company_id ?? ''),
+    });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditForm({ name: '', email: '', role_id: '' });
+    setEditForm({ name: '', email: '', role_id: '', company_id: '' });
   };
 
   const saveEdit = async (idOverride) => {
@@ -79,10 +93,12 @@ const UserAccessControlPage = () => {
       name: (editForm.name || '').trim(),
       email: (editForm.email || '').trim(),
       role_id: Number(editForm.role_id),
+      company_id: editForm.company_id ? Number(editForm.company_id) : null,
     };
     if (!payload.name) { setError('Name is required'); return; }
     if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) { setError('Valid email is required'); return; }
     if (!Number.isInteger(payload.role_id)) { setError('Role is required'); return; }
+    if (!Number.isInteger(Number(editForm.company_id))) { setError('Company is required'); return; }
     try {
       const updated = await patchUser(idNum, payload);
       const merged = (updated && typeof updated === 'object') ? updated : payload;
@@ -121,14 +137,8 @@ const UserAccessControlPage = () => {
 
   useEffect(() => { reload(); }, []);
 
-  const computeNextUserId = () => {
-    const ids = users.map(u => Number(u.user_id)).filter((n) => Number.isInteger(n));
-    const maxId = ids.length ? Math.max(...ids) : 0;
-    return maxId + 1;
-  };
-
   const openCreate = () => {
-    setCreateForm({ ...emptyCreate, user_id: String(computeNextUserId()) });
+    setCreateForm({ ...emptyCreate });
     setCreateError('');
     setCreateOpen(true);
   };
@@ -138,18 +148,20 @@ const UserAccessControlPage = () => {
     try {
       setCreateError('');
       const payload = {
-        user_id: Number(createForm.user_id),
         name: (createForm.name || '').trim(),
         email: (createForm.email || '').trim(),
         password: (createForm.password || '').trim(),
+        confirmPassword: (createForm.confirmPassword || '').trim(),
         role_id: Number(createForm.role_id),
+        company_id: createForm.company_id ? Number(createForm.company_id) : null,
       };
-      if (!Number.isInteger(payload.user_id) || payload.user_id <= 0) { setCreateError('User ID must be a positive integer'); return; }
       if (!payload.name) { setCreateError('Name is required'); return; }
       if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) { setCreateError('Valid email is required'); return; }
       if (!payload.password) { setCreateError('Password is required'); return; }
+      if (!payload.confirmPassword) { setCreateError('Confirm password is required'); return; }
+      if (payload.password !== payload.confirmPassword) { setCreateError('Passwords do not match'); return; }
       if (!Number.isInteger(payload.role_id)) { setCreateError('Role is required'); return; }
-      if (users.some(u => Number(u.user_id) === payload.user_id)) { setCreateError('User ID already exists'); return; }
+      if (!Number.isInteger(Number(createForm.company_id))) { setCreateError('Company is required'); return; }
 
       await createUser(payload);
       await reload();
@@ -187,6 +199,9 @@ const UserAccessControlPage = () => {
               <div className="cell">Name</div>
               <div className="cell">Email</div>
               <div className="cell">Role</div>
+              <div className="cell">Company</div>
+              <div className="cell">Updated at</div>
+              <div className="cell">Created at</div>
               <div className="cell actions">Actions</div>
             </div>
             {users.length === 0 ? (
@@ -230,6 +245,19 @@ const UserAccessControlPage = () => {
                           ))}
                         </select>
                       </div>
+                      <div className="cell">
+                        <select
+                          value={editForm.company_id}
+                          onChange={(e) => setEditForm((f) => ({ ...f, company_id: e.target.value }))}
+                        >
+                          <option value="">Select company</option>
+                          {companies.map(c => (
+                            <option key={c.company_id} value={c.company_id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="cell">{u.updated_at ? new Date(u.updated_at).toLocaleDateString() : '—'}</div>
+                      <div className="cell">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</div>
                       <div className="cell actions">
                         <button
                           type="button"
@@ -252,6 +280,9 @@ const UserAccessControlPage = () => {
                       <div className="cell">{u.name}</div>
                       <div className="cell">{u.email}</div>
                       <div className="cell">{roleNameById.get(Number(u.role_id)) || '—'}</div>
+                      <div className="cell">{companyNameById.get(Number(u.company_id)) || '—'}</div>
+                      <div className="cell">{u.updated_at ? new Date(u.updated_at).toLocaleDateString() : '—'}</div>
+                      <div className="cell">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</div>
                       <div className="cell actions">
                         <button className="secondary-btn sm" onClick={() => startEdit(u)}>Edit</button>
                         <button className="danger-btn sm" onClick={() => removeSingle(u.user_id)}>Delete</button>
@@ -281,12 +312,6 @@ const UserAccessControlPage = () => {
         )}
         <div className="role-card create-card">
           <div className="field">
-            <label htmlFor="cu-userid">User ID</label>
-            <input id="cu-userid" type="number" min="1" value={createForm.user_id}
-                   disabled readOnly
-                   onChange={(e) => setCreateForm({ ...createForm, user_id: e.target.value })} />
-          </div>
-          <div className="field">
             <label htmlFor="cu-name">Name</label>
             <input id="cu-name" type="text" value={createForm.name}
                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} />
@@ -300,6 +325,21 @@ const UserAccessControlPage = () => {
             <label htmlFor="cu-password">Password</label>
             <input id="cu-password" type="password" value={createForm.password}
                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="cu-confirm">Confirm Password</label>
+            <input id="cu-confirm" type="password" value={createForm.confirmPassword}
+                   onChange={(e) => setCreateForm({ ...createForm, confirmPassword: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="cu-company">Company</label>
+            <select id="cu-company" value={createForm.company_id}
+                    onChange={(e) => setCreateForm({ ...createForm, company_id: e.target.value })}>
+              <option value="">Select company</option>
+              {companies.map(c => (
+                <option key={c.company_id} value={c.company_id}>{c.name}</option>
+              ))}
+            </select>
           </div>
           <div className="field">
             <label htmlFor="cu-role">Role</label>

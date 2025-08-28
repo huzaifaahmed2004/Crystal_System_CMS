@@ -30,16 +30,16 @@ export async function getUserById(userId) {
 }
 
 export async function createUser(payload) {
-  // payload (from UI): { user_id, name, email, password, role_id }
-  // backend expects 'username' instead of 'name'; include user_id (non-autoincrement PK)
-  const uid = Number(payload.user_id);
-  if (!Number.isInteger(uid)) throw new Error('user_id must be an integer');
+  // payload (from UI): { name, email, password, role_id, company_id }
+  // Backend auto-increments user_id; do not send user_id in body
+  // created_at is set to now on create
   const body = {
-    user_id: uid,
-    username: payload.username ?? payload.name,
+    name: payload.name,
     email: payload.email,
     password: payload.password,
+    confirmPassword: payload.confirmPassword,
     role_id: payload.role_id,
+    company_id: payload.company_id ?? null,
   };
   return api.post('/user', body);
 }
@@ -48,10 +48,6 @@ export async function patchUser(userId, payload) {
   const idNum = Number(userId);
   if (!Number.isInteger(idNum)) throw new Error('userId must be an integer');
   const body = { ...payload };
-  if (Object.prototype.hasOwnProperty.call(body, 'name')) {
-    body.username = body.name;
-    delete body.name;
-  }
   // Do NOT send the id in the body; backend expects it only in the URL
   delete body.user_id;
   delete body.id;

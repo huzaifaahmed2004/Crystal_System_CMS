@@ -21,10 +21,9 @@ export async function getRoleById(roleId) {
 }
 
 export async function createRole(payload) {
-  // payload: { role_id, name, description }
-  const rid = Number(payload.role_id);
-  if (!Number.isInteger(rid)) throw new Error('role_id must be an integer');
-  const body = { role_id: rid, name: payload.name, description: payload.description };
+  // payload: { name, description }
+  // Backend now auto-increments role_id; do not send id in body
+  const body = { name: payload?.name, description: payload?.description };
   return api.post('/role', body);
 }
 

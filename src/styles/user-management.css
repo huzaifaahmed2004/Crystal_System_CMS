@@ -4,33 +4,58 @@
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  overflow: hidden;
+  /* Allow horizontal scroll when columns exceed width */
+  overflow-x: auto;
+  overflow-y: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  /* Single source of truth for column widths */
+  /* checkbox | name | email | role | company | updated | created | actions(max-content) */
+  --users-grid: 48px 1fr 1.4fr 1fr 1fr 140px 140px max-content;
+  display: grid;
+  grid-template-columns: var(--users-grid);
 }
 
 .users-table-header,
 .users-table-row {
-  display: grid;
-  /* checkbox | name | email | role | actions */
-  grid-template-columns: 48px 1fr 1.4fr 0.9fr 220px;
-  align-items: center;
+  /* make children participate in parent grid to guarantee alignment */
+  display: contents;
 }
 
-.users-table-header {
+.users-table-header .cell {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-bottom: 1px solid #e5e7eb;
   font-weight: 700;
   color: #1f2937;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  text-align: center;
 }
-.users-table-header .cell { padding: 12px 16px; font-size: 0.9rem; }
 
 .users-table-row { border-bottom: 1px solid #f1f5f9; }
 .users-table-row:last-child { border-bottom: none; }
-.users-table-row .cell { padding: 12px 16px; }
+.users-table-row .cell { padding: 12px 16px; text-align: center; }
 .users-table-row.selected { background: #f8fafc; }
 
+/* Prevent timestamp columns from wrapping into two lines */
+.users-table-header .cell:nth-child(6), /* Updated at header */
+.users-table-header .cell:nth-child(7), /* Created at header */
+.users-table-row .cell:nth-child(6),     /* Updated at cell */
+.users-table-row .cell:nth-child(7) {    /* Created at cell */
+  white-space: nowrap;
+}
+
+/* Ensure header labels don't wrap, keeping alignment */
+.users-table-header .cell { white-space: nowrap; }
+
 .cell.checkbox { display: flex; justify-content: center; }
-.cell.actions { display: flex; gap: 8px; justify-content: flex-end; padding-right: 16px; }
+/* Scope actions flex layout to body rows only so header stays centered */
+.users-table-row .cell.actions { display: flex; gap: 8px; justify-content: flex-end; padding-right: 16px; }
+/* Ensure header actions cell is not flex so text-align center applies */
+.users-table-header .cell.actions { display: block; padding-right: 16px; }
+
+/* Keep form controls left-aligned when editing */
+.users-table-row .cell input,
+.users-table-row .cell select { text-align: left; }
 
 .users-table-row input[type="text"],
 .users-table-row input[type="email"],
@@ -40,6 +65,7 @@
   border: 2px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
+  
 }
 .users-table-row input[type="text"]:focus,
 .users-table-row input[type="email"]:focus,

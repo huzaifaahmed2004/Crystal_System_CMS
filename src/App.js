@@ -6,7 +6,7 @@ import './styles/dashboard-page.css';
 
 function App() {
   // Temporary: bypass auth to work on frontend while backend is down
-  const DEV_BYPASS_AUTH = true; // set to false to restore login routing
+  const DEV_BYPASS_AUTH = false; // login API working: restore login routing
 
   // Initialize from sessionStorage so refresh retains session
   const initialAuth = (() => {
