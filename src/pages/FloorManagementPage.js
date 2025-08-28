@@ -1,26 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
 import { getBuildings } from '../services/buildingService';
-import { getFloors, getFloorById, createFloor, patchFloor, deleteFloor, deleteFloorsBulk } from '../services/floorService';
-import FormModal from '../components/ui/FormModal';
+import { getFloors, deleteFloor, deleteFloorsBulk } from '../services/floorService';
 import Modal from '../components/ui/Modal';
+import { useAppContext } from '../context/AppContext';
 
 const FloorManagementPage = () => {
+  const { setActiveSection, setFloorFormMode, setFloorId } = useAppContext();
   const [buildings, setBuildings] = useState([]);
   const buildingMap = useMemo(() => Object.fromEntries((buildings || []).map(b => [Number(b.building_id), b])), [buildings]);
   const [floors, setFloors] = useState([]);
+  const [allFloors, setAllFloors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [searchId, setSearchId] = useState('');
 
-  const [creating, setCreating] = useState(false);
-  const [createForm, setCreateForm] = useState({ building_id: '', floor_no: '' });
-  const [createError, setCreateError] = useState('');
-
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ floor_no: '' });
+  // remove inline create/edit; handled in FloorDetailPage
 
   const [modal, setModal] = useState({ open: false, title: 'Notice', message: '' });
   const openModal = (title, message) => setModal({ open: true, title, message });
@@ -37,7 +34,9 @@ const FloorManagementPage = () => {
         ]);
         if (!mounted) return;
         setBuildings(Array.isArray(bs) ? bs : []);
-        setFloors(Array.isArray(list) ? list : []);
+        const fl = Array.isArray(list) ? list : [];
+        setAllFloors(fl);
+        setFloors(fl);
         setError('');
       } catch (e) {
         if (!mounted) return;
@@ -69,7 +68,9 @@ const FloorManagementPage = () => {
     try {
       setLoading(true);
       const list = await getFloors();
-      setFloors(Array.isArray(list) ? list : []);
+      const fl = Array.isArray(list) ? list : [];
+      setAllFloors(fl);
+      setFloors(fl);
       setError('');
     } catch (e) {
       setError('Failed to load floors');
@@ -79,19 +80,13 @@ const FloorManagementPage = () => {
   };
 
   const handleSearch = async () => {
-    const id = String(searchId).trim();
-    if (!id) { await reloadAll(); return; }
-    try {
-      setLoading(true);
-      const item = await getFloorById(id);
-      setFloors(item ? [item] : []);
-      setError('');
-    } catch (e) {
-      setFloors([]);
-      setError(e?.message || 'No floor found for the provided ID');
-    } finally {
-      setLoading(false);
-    }
+    const term = String(searchId).trim().toLowerCase();
+    if (!term) { await reloadAll(); return; }
+    setLoading(true);
+    const filtered = allFloors.filter(f => String(f.floor_code || '').toLowerCase().includes(term));
+    setFloors(filtered);
+    setError('');
+    setLoading(false);
   };
 
   const clearSearch = async () => {
@@ -99,61 +94,25 @@ const FloorManagementPage = () => {
     await reloadAll();
   };
 
-  const openCreate = () => {
-    setCreateForm({ building_id: '', floor_no: '' });
-    setCreateError('');
-    setCreating(true);
+  const goToCreate = () => {
+    setFloorFormMode('create');
+    setFloorId(null);
+    setActiveSection('floor-detail');
   };
 
-  const cancelCreate = () => {
-    setCreating(false);
-    setCreateForm({ building_id: '', floor_no: '' });
-    setCreateError('');
+  const goToEdit = (id) => {
+    setFloorFormMode('edit');
+    setFloorId(id);
+    setActiveSection('floor-detail');
   };
 
-  const submitCreate = async () => {
-    const floorNo = Number(createForm.floor_no);
-    const bId = Number(createForm.building_id);
-    if (!Number.isInteger(bId) || bId <= 0) { setCreateError('Please select a building'); return; }
-    if (!Number.isInteger(floorNo) || floorNo < 0) { setCreateError('Floor number must be a non-negative integer'); return; }
-    try {
-      const b = buildingMap[bId];
-      await createFloor({
-        building_id: bId,
-        floor_no: floorNo,
-        rows: Number(b?.rows) || 0,
-        columns: Number(b?.columns) || 0,
-      });
-      cancelCreate();
-      await reloadAll();
-    } catch (e) {
-      setCreateError(e?.message || 'Failed to create floor');
-    }
-  };
+  // creation handled on FloorDetailPage
 
-  const startEdit = (floor) => {
-    setEditingId(floor.floor_id);
-    setEditForm({ floor_no: floor.floor_no });
-  };
+  // edit handled on FloorDetailPage
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditForm({ floor_no: '' });
-  };
+  // inline cancel/edit removed
 
-  const saveEdit = async (idOverride) => {
-    const targetId = idOverride ?? editingId;
-    if (targetId === null || targetId === undefined) { openModal('Edit error', 'No floor selected'); return; }
-    const floorNo = Number(editForm.floor_no);
-    if (!Number.isInteger(floorNo) || floorNo < 0) { openModal('Validation', 'Floor number must be a non-negative integer'); return; }
-    try {
-      await patchFloor(targetId, { floor_no: floorNo });
-      setFloors((prev) => prev.map(f => (f.floor_id === targetId ? { ...f, floor_no: floorNo } : f)));
-      cancelEdit();
-    } catch (e) {
-      openModal('Save error', e?.message || 'Failed to update floor');
-    }
-  };
+  // inline save removed
 
   const removeSingle = async (id) => {
     try {
@@ -190,8 +149,7 @@ const FloorManagementPage = () => {
               <input
                 className="search-input"
                 type="text"
-                inputMode="numeric"
-                placeholder="Search by Floor ID"
+                placeholder="Search by Floor Code"
                 value={searchId}
                 onChange={(e) => setSearchId(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
@@ -199,7 +157,7 @@ const FloorManagementPage = () => {
               <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
               <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
             </div>
-            <button className="primary-btn" onClick={openCreate}>+ Add Floor</button>
+            <button className="primary-btn" onClick={goToCreate}>+ Add Floor</button>
             <button className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
           </div>
         </div>
@@ -211,11 +169,12 @@ const FloorManagementPage = () => {
           <div className="no-results">Loading floors...</div>
         ) : (
           <div className="roles-table">
-            <div className="roles-table-header" style={{ gridTemplateColumns: '48px 1fr 1.2fr 1fr 1fr 220px' }}>
+            <div className="roles-table-header" style={{ gridTemplateColumns: '48px 1fr 1.2fr 1.2fr 1fr 1fr 220px' }}>
               <div className="cell checkbox">
                 <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
               </div>
-              <div className="cell">Floor No</div>
+              <div className="cell">Code</div>
+              <div className="cell">Name</div>
               <div className="cell">Building</div>
               <div className="cell">Rows (read-only)</div>
               <div className="cell">Columns (read-only)</div>
@@ -226,78 +185,24 @@ const FloorManagementPage = () => {
               <div className="no-results">No floors found.</div>
             ) : (
               floors.map((f) => (
-                <div key={f.floor_id} className={`roles-table-row ${selectedIds.has(f.floor_id) ? 'selected' : ''}`} style={{ gridTemplateColumns: '48px 1fr 1.2fr 1fr 1fr 220px' }}>
+                <div key={f.floor_id} className={`roles-table-row ${selectedIds.has(f.floor_id) ? 'selected' : ''}`} style={{ gridTemplateColumns: '48px 1fr 1.2fr 1.2fr 1fr 1fr 220px' }}>
                   <div className="cell checkbox">
                     <input type="checkbox" checked={selectedIds.has(f.floor_id)} onChange={() => toggleSelect(f.floor_id)} />
                   </div>
-                  {editingId === f.floor_id ? (
-                    <>
-                      <div className="cell">
-                        <input type="number" min="0" value={editForm.floor_no} onChange={(e) => setEditForm({ floor_no: e.target.value })} />
-                      </div>
-                      <div className="cell">{buildingMap[Number(f.building_id)]?.name || `Building ${f.building_id}`}</div>
-                      <div className="cell">{buildingMap[Number(f.building_id)]?.rows ?? f.rows}</div>
-                      <div className="cell">{buildingMap[Number(f.building_id)]?.columns ?? f.columns}</div>
-                      <div className="cell actions">
-                        <button className="primary-btn sm" onClick={() => saveEdit(f.floor_id)}>Save</button>
-                        <button className="secondary-btn sm" onClick={cancelEdit}>Cancel</button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="cell">{f.floor_no}</div>
-                      <div className="cell">{buildingMap[Number(f.building_id)]?.name || `Building ${f.building_id}`}</div>
-                      <div className="cell">{buildingMap[Number(f.building_id)]?.rows ?? f.rows}</div>
-                      <div className="cell">{buildingMap[Number(f.building_id)]?.columns ?? f.columns}</div>
-                      <div className="cell actions">
-                        <button className="secondary-btn sm" onClick={() => startEdit(f)}>Edit</button>
-                        <button className="danger-btn sm" onClick={() => removeSingle(f.floor_id)}>Delete</button>
-                      </div>
-                    </>
-                  )}
+                  <div className="cell">{f.floor_code}</div>
+                  <div className="cell">{f.name}</div>
+                  <div className="cell">{buildingMap[Number(f.building_id)]?.name || `Building ${f.building_id}`}</div>
+                  <div className="cell">{buildingMap[Number(f.building_id)]?.rows ?? f.rows}</div>
+                  <div className="cell">{buildingMap[Number(f.building_id)]?.columns ?? f.columns}</div>
+                  <div className="cell actions">
+                    <button className="secondary-btn sm" onClick={() => goToEdit(f.floor_id)}>Edit</button>
+                    <button className="danger-btn sm" onClick={() => removeSingle(f.floor_id)}>Delete</button>
+                  </div>
                 </div>
               ))
             )}
           </div>
         )}
-
-        {/* Create Floor Modal */}
-        <FormModal
-          open={creating}
-          title="Add Floor"
-          onCancel={cancelCreate}
-          footer={(
-            <>
-              <button type="button" className="primary-btn" onClick={submitCreate}>Create</button>
-              <button type="button" className="secondary-btn" onClick={cancelCreate}>Cancel</button>
-            </>
-          )}
-        >
-          {createError && (<div className="error-banner" style={{ marginBottom: 12 }}>{createError}</div>)}
-          <div className="role-card create-card">
-            <div className="field">
-              <label>Building</label>
-              <select value={createForm.building_id} onChange={(e) => setCreateForm((prev) => ({ ...prev, building_id: e.target.value }))}>
-                <option value="">Select a building</option>
-                {(buildings || []).map((b) => (
-                  <option key={b.building_id} value={b.building_id}>{b.name || `Building ${b.building_id}`}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Floor No</label>
-              <input type="number" min="0" value={createForm.floor_no} onChange={(e) => setCreateForm({ floor_no: e.target.value, building_id: createForm.building_id })} />
-            </div>
-            <div className="field">
-              <label>Rows (inherited from building)</label>
-              <input type="number" value={buildingMap[Number(createForm.building_id)]?.rows ?? ''} readOnly disabled />
-            </div>
-            <div className="field">
-              <label>Columns (inherited from building)</label>
-              <input type="number" value={buildingMap[Number(createForm.building_id)]?.columns ?? ''} readOnly disabled />
-            </div>
-          </div>
-        </FormModal>
 
         <Modal open={modal.open} title={modal.title} onCancel={closeModal} cancelText="Close">
           {modal.message}

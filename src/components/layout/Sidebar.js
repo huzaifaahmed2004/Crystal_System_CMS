@@ -39,10 +39,10 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
         <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7l3-7z" fill="currentColor"/>
       </svg>
     ),
-    // Parent icon for Company section
+    // Parent icon for Structure section (match other SVG icons)
     'company': (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M3 11h18v10H3V11zm2-6h14v4H5V5z" fill="currentColor"/>
+        <path d="M4 20h16v-2H4v2zm2-4h12v-2H6v2zm-2-4h16V6H4v6zm2-4h12v2H6V8z" fill="currentColor"/>
       </svg>
     ),
     'ai-processes': (
@@ -54,11 +54,6 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 5.5V22h18v-2.5C21 16.5 17 14 12 14z" fill="currentColor"/>
       </svg>
-    ),
-    'layout-management': (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M3 3h18v6H3V3zm0 8h8v10H3V11zm10 0h8v10h-8V11z" fill="currentColor"/>
-      </svg>
     )
   };
 
@@ -68,10 +63,10 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     { id: 'task-management', label: 'Task Management' },
     { id: 'job-management', label: 'Job Management' },
     { id: 'function-management', label: 'Function Management' },
-    { id: 'company', label: 'Company' },
+    { id: 'company', label: 'Structure' },
     { id: 'ai-processes', label: 'AI-Generated Processes' },
     { id: 'user-access', label: 'User & Access Control' },
-    { id: 'layout-management', label: 'Layout Management' }
+    // layout-management removed
   ];
 
   return (

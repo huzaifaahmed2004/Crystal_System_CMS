@@ -18,6 +18,9 @@ const normalizeBuilding = (dto) => ({
   rows: dto?.rows ?? 0,
   columns: dto?.columns ?? 0,
   floors: dto?.floors ?? 0,
+  // Optional layout markers if provided by backend
+  stairs_cell: dto?.stairs_cell ?? null,
+  elevator_cell: dto?.elevator_cell ?? null,
 });
 
 export async function getBuildings() {
@@ -27,8 +30,9 @@ export async function getBuildings() {
   } catch (e) {
     console.warn('Falling back to mock buildings due to API error');
     return [
-      { building_id: 101, building_code: 'HQ-101', name: 'HQ', company_id: 1, country: 'USA', city: 'San Jose', rows: 10, columns: 12, floors: 5 },
-      { building_id: 102, building_code: 'PLANT-A', name: 'Plant A', company_id: 2, country: 'USA', city: 'Fremont', rows: 20, columns: 20, floors: 3 },
+      // Include optional layout markers so FloorDetailPage can reserve cells locally without API
+      { building_id: 101, building_code: 'HQ-101', name: 'HQ', company_id: 1, country: 'USA', city: 'San Jose', rows: 5, columns: 10, floors: 3, stairs_cell: 5, elevator_cell: 15 },
+      { building_id: 102, building_code: 'PLANT-A', name: 'Plant A', company_id: 2, country: 'USA', city: 'Fremont', rows: 4, columns: 8, floors: 2, stairs_cell: 8, elevator_cell: 16 },
     ];
   }
 }
@@ -74,6 +78,9 @@ export async function patchBuilding(id, payload) {
   if (payload.columns !== undefined) body.columns = Number(payload.columns) || 0;
   if (payload.floors !== undefined) body.floors = Number(payload.floors) || 0;
   if (payload.building_code !== undefined) body.building_code = String(payload.building_code).trim();
+  // Optional layout markers for stairs/elevator cells
+  if (payload.stairs_cell !== undefined) body.stairs_cell = payload.stairs_cell === null ? null : Number(payload.stairs_cell);
+  if (payload.elevator_cell !== undefined) body.elevator_cell = payload.elevator_cell === null ? null : Number(payload.elevator_cell);
   if (payload.building_id !== undefined && Number(payload.building_id) !== Number(id)) body.id = Number(payload.building_id);
   try {
     const res = await api.patch(`/building/${id}`, body);

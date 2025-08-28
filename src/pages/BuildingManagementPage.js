@@ -87,6 +87,11 @@ const BuildingManagementPage = () => {
     setActiveSection('building-detail');
   };
 
+  const goToEdit = (id) => {
+    setBuildingId(id);
+    setActiveSection('building-edit');
+  };
+
   const removeSingle = async (id) => {
     // Requirement: delete should open new page, not inline
     goToDetail('delete', id);
@@ -168,7 +173,7 @@ const BuildingManagementPage = () => {
                   <div className="cell">{b.city}</div>
                   <div className="cell actions">
                     <button className="secondary-btn sm" onClick={() => goToDetail('view', b.building_id)}>View</button>
-                    <button className="primary-btn sm" onClick={() => goToDetail('edit', b.building_id)}>Edit</button>
+                    <button className="primary-btn sm" onClick={() => goToEdit(b.building_id)}>Edit</button>
                     <button className="danger-btn sm" onClick={() => removeSingle(b.building_id)}>Delete</button>
                   </div>
                 </div>

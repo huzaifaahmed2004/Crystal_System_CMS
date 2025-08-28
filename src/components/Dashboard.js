@@ -7,13 +7,14 @@ import JobManagementPage from '../pages/JobManagementPage';
 import FunctionManagementPage from '../pages/FunctionManagementPage';
 import AIProcessesPage from '../pages/AIProcessesPage';
 import UserAccessControlPage from '../pages/UserAccessControlPage';
-import LayoutManagementPage from '../pages/LayoutManagementPage';
 import CompanyManagementPage from '../pages/CompanyManagementPage';
 import CompanyOverviewPage from '../pages/CompanyOverviewPage';
 import RoleManagementPage from '../pages/RoleManagementPage';
 import BuildingManagementPage from '../pages/BuildingManagementPage';
 import BuildingDetailPage from '../pages/BuildingDetailPage';
+import BuildingEditPage from '../pages/BuildingEditPage';
 import FloorManagementPage from '../pages/FloorManagementPage';
+import FloorDetailPage from '../pages/FloorDetailPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -21,6 +22,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [layoutCompanyId, setLayoutCompanyId] = useState(null);
   const [buildingId, setBuildingId] = useState(null);
   const [buildingFormMode, setBuildingFormMode] = useState('view');
+  const [floorId, setFloorId] = useState(null);
+  const [floorFormMode, setFloorFormMode] = useState('view');
 
   // Persist active section across refreshes in this session
   useEffect(() => {
@@ -51,8 +54,12 @@ const Dashboard = ({ user, onLogout }) => {
         return <BuildingManagementPage />;
       case 'building-detail':
         return <BuildingDetailPage />;
+      case 'building-edit':
+        return <BuildingEditPage />;
       case 'building-floors':
         return <FloorManagementPage />;
+      case 'floor-detail':
+        return <FloorDetailPage />;
       // Backward compatibility for persisted sessions/older ids
       case 'company-management':
       case 'organization-management':
@@ -63,8 +70,7 @@ const Dashboard = ({ user, onLogout }) => {
         return <RoleManagementPage />;
       case 'user-access':
         return <UserAccessControlPage />;
-      case 'layout-management':
-        return <LayoutManagementPage />;
+      // layout-management removed; layout UI is integrated into FloorDetailPage
       default:
         return <DashboardPage />;
     }
@@ -82,6 +88,8 @@ const Dashboard = ({ user, onLogout }) => {
         layoutCompanyId, setLayoutCompanyId,
         buildingId, setBuildingId,
         buildingFormMode, setBuildingFormMode,
+        floorId, setFloorId,
+        floorFormMode, setFloorFormMode,
       }}>
         <div className="page-router">
           {renderContent()}

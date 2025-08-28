@@ -88,8 +88,8 @@ const BuildingDetailPage = () => {
     if (!String(form.name || '').trim()) errors.push('Building name is required');
     if ((isCreate || isEdit) && (form.company_id === '' || form.company_id === null || Number.isNaN(Number(form.company_id)))) errors.push('Company is required');
     const rows = Number(form.rows), cols = Number(form.columns);
-    if ((isCreate || isEdit) && (!Number.isInteger(rows) || rows < 0)) errors.push('Rows must be a non-negative integer');
-    if ((isCreate || isEdit) && (!Number.isInteger(cols) || cols < 0)) errors.push('Columns must be a non-negative integer');
+    if ((isCreate || isEdit) && (!Number.isInteger(rows) || rows < 0 || rows > 5)) errors.push('Rows must be an integer between 0 and 5');
+    if ((isCreate || isEdit) && (!Number.isInteger(cols) || cols < 0 || cols > 10)) errors.push('Columns must be an integer between 0 and 10');
     return errors;
   };
 
@@ -177,7 +177,7 @@ const BuildingDetailPage = () => {
             <button className="secondary-btn" onClick={backToList}>Back to Buildings</button>
             {isView && (
               <>
-                <button className="primary-btn" onClick={() => { setBuildingFormMode('edit'); /* keep id */ }}>Edit</button>
+                <button className="primary-btn" onClick={() => { setActiveSection('building-edit'); /* go to dedicated edit page */ }}>Edit</button>
                 <button className="danger-btn" onClick={() => { setBuildingFormMode('delete'); /* keep id */ }}>Delete</button>
               </>
             )}
@@ -234,8 +234,12 @@ const BuildingDetailPage = () => {
                 <input
                   type="number"
                   min="0"
+                  max="5"
                   value={form.rows}
-                  onChange={(e) => setForm((f) => ({ ...f, rows: e.target.value }))}
+                  onChange={(e) => {
+                    const n = Math.max(0, Math.min(5, Number(e.target.value)));
+                    setForm((f) => ({ ...f, rows: Number.isFinite(n) ? n : 0 }));
+                  }}
                   disabled={isReadOnly}
                 />
               </div>
@@ -244,8 +248,12 @@ const BuildingDetailPage = () => {
                 <input
                   type="number"
                   min="0"
+                  max="10"
                   value={form.columns}
-                  onChange={(e) => setForm((f) => ({ ...f, columns: e.target.value }))}
+                  onChange={(e) => {
+                    const n = Math.max(0, Math.min(10, Number(e.target.value)));
+                    setForm((f) => ({ ...f, columns: Number.isFinite(n) ? n : 0 }));
+                  }}
                   disabled={isReadOnly}
                 />
               </div>
@@ -295,4 +303,4 @@ const BuildingDetailPage = () => {
   );
 };
 
-export default BuildingDetail
+export default BuildingDetailPage;
