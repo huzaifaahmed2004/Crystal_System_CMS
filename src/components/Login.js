@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
+import { login as loginApi } from '../services/authService';
+import Modal from './ui/Modal';
 
 const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+  const [modal, setModal] = useState({ open: false, title: 'Notice', message: '' });
+
+  const openModal = (title, message) => setModal({ open: true, title, message });
+  const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
   const handleChange = (e) => {
     setFormData({
@@ -13,17 +19,18 @@ const Login = ({ onLogin }) => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Basic authentication - in real app, this would call an API
-    if (formData.email && formData.password) {
-      const userData = {
-        name: formData.email.split('@')[0], // Use email prefix as name
-        email: formData.email
-      };
-      onLogin(userData);
-    } else {
-      alert('Please enter both email and password');
+    if (!formData.email || !formData.password) {
+      openModal('Login error', 'Please enter both email and password');
+      return;
+    }
+    try {
+      const res = await loginApi(formData.email, formData.password);
+      // res: { access_token, user }
+      onLogin({ user: res.user, accessToken: res.access_token });
+    } catch (err) {
+      openModal('Login failed', err?.message || 'Login failed');
     }
   };
 
@@ -99,6 +106,9 @@ const Login = ({ onLogin }) => {
           </button>
         </form>
       </div>
+      <Modal open={modal.open} title={modal.title} onCancel={closeModal} cancelText="Close">
+        {modal.message}
+      </Modal>
     </div>
   );
 };

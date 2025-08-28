@@ -18,11 +18,14 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!initialAuth);
   const [user, setUser] = useState(initialAuth?.user || null);
 
-  const handleLogin = (userData) => {
-    // Persist minimal auth info for this tab only
-    sessionStorage.setItem('auth', JSON.stringify({ user: userData }));
+  // onLogin expects { user, accessToken }
+  const handleLogin = (authPayload) => {
+    const { user: nextUser, accessToken: nextToken } = authPayload || {};
+    if (!nextUser || !nextToken) return;
+    // Persist auth info for this tab only
+    sessionStorage.setItem('auth', JSON.stringify({ user: nextUser, accessToken: nextToken }));
     setIsAuthenticated(true);
-    setUser(userData);
+    setUser(nextUser);
   };
 
   const handleLogout = () => {

@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 
 const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
   const [openUserAccess, setOpenUserAccess] = useState(false);
+  const [openCompany, setOpenCompany] = useState(false);
 
   // Keep submenu open when a related section is active
   useEffect(() => {
     if (['user-access', 'role-management'].includes(activeSection)) {
       setOpenUserAccess(true);
+    }
+    if (['company-overview', 'companies', 'buildings', 'building-detail', 'building-floors', 'company-management', 'organization-management'].includes(activeSection)) {
+      setOpenCompany(true);
     }
   }, [activeSection]);
   const icons = {
@@ -35,7 +39,8 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
         <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7l3-7z" fill="currentColor"/>
       </svg>
     ),
-    'organization-management': (
+    // Parent icon for Company section
+    'company': (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M3 11h18v10H3V11zm2-6h14v4H5V5z" fill="currentColor"/>
       </svg>
@@ -63,7 +68,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     { id: 'task-management', label: 'Task Management' },
     { id: 'job-management', label: 'Job Management' },
     { id: 'function-management', label: 'Function Management' },
-    { id: 'organization-management', label: 'Organization Management' },
+    { id: 'company', label: 'Company' },
     { id: 'ai-processes', label: 'AI-Generated Processes' },
     { id: 'user-access', label: 'User & Access Control' },
     { id: 'layout-management', label: 'Layout Management' }
@@ -75,16 +80,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
         <ul className="nav-list">
           {menuItems.map((item) => (
             <li key={item.id} className="nav-item">
-              {item.id !== 'user-access' ? (
-                <button
-                  className={`nav-button ${activeSection === item.id ? 'active' : ''}`}
-                  onClick={() => setActiveSection(item.id)}
-                  title={collapsed ? item.label : ''}
-                >
-                  <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
-                  {!collapsed && <span className="nav-label">{item.label}</span>}
-                </button>
-              ) : (
+              {item.id === 'user-access' ? (
                 <>
                   <button
                     className={`nav-button ${(['user-access', 'role-management'].includes(activeSection)) ? 'active' : ''}`}
@@ -120,6 +116,67 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
                     </ul>
                   )}
                 </>
+              ) : item.id === 'company' ? (
+                <>
+                  <button
+                    className={`nav-button ${(['company-overview', 'companies', 'company-management', 'organization-management'].includes(activeSection)) ? 'active' : ''}`}
+                    onClick={() => setOpenCompany((v) => !v)}
+                    title={collapsed ? item.label : ''}
+                  >
+                    <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                    {!collapsed && (
+                      <span className="nav-label" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        {item.label}
+                        <span className={`submenu-caret ${openCompany ? 'open' : ''}`} aria-hidden="true">▾</span>
+                      </span>
+                    )}
+                  </button>
+                  {!collapsed && openCompany && (
+                    <ul className="nav-sublist" style={{ marginTop: 4, marginLeft: 36 }}>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'company-overview' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('company-overview')}
+                        >
+                          Overview
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'companies' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('companies')}
+                        >
+                          Companies
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${(['buildings','building-detail'].includes(activeSection)) ? 'active' : ''}`}
+                          onClick={() => setActiveSection('buildings')}
+                        >
+                          Buildings
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'building-floors' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('building-floors')}
+                        >
+                          Floors
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <button
+                  className={`nav-button ${activeSection === item.id ? 'active' : ''}`}
+                  onClick={() => setActiveSection(item.id)}
+                  title={collapsed ? item.label : ''}
+                >
+                  <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                  {!collapsed && <span className="nav-label">{item.label}</span>}
+                </button>
               )}
             </li>
           ))}

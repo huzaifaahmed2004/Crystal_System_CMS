@@ -21,15 +21,20 @@ export async function getRoleById(roleId) {
 }
 
 export async function createRole(payload) {
-  // payload: { name, description }
-  const body = { role_id: 0, name: payload.name, description: payload.description };
+  // payload: { role_id, name, description }
+  const rid = Number(payload.role_id);
+  if (!Number.isInteger(rid)) throw new Error('role_id must be an integer');
+  const body = { role_id: rid, name: payload.name, description: payload.description };
   return api.post('/role', body);
 }
 
 export async function patchRole(roleId, payload) {
   const idNum = Number(roleId);
   if (!Number.isInteger(idNum)) throw new Error('roleId must be an integer');
-  const body = { ...payload, role_id: idNum };
+  // Do NOT send the id in the body; backend expects it only in the URL
+  const body = { ...(payload || {}) };
+  delete body.role_id;
+  delete body.id;
   return api.patch(`/role/${idNum}`, body);
 }
 

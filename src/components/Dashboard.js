@@ -8,13 +8,19 @@ import FunctionManagementPage from '../pages/FunctionManagementPage';
 import AIProcessesPage from '../pages/AIProcessesPage';
 import UserAccessControlPage from '../pages/UserAccessControlPage';
 import LayoutManagementPage from '../pages/LayoutManagementPage';
-import OrganizationManagementPage from '../pages/OrganizationManagementPage';
+import CompanyManagementPage from '../pages/CompanyManagementPage';
+import CompanyOverviewPage from '../pages/CompanyOverviewPage';
 import RoleManagementPage from '../pages/RoleManagementPage';
+import BuildingManagementPage from '../pages/BuildingManagementPage';
+import BuildingDetailPage from '../pages/BuildingDetailPage';
+import FloorManagementPage from '../pages/FloorManagementPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
   const [activeSection, setActiveSection] = useState(() => sessionStorage.getItem('activeSection') || 'dashboard');
   const [layoutCompanyId, setLayoutCompanyId] = useState(null);
+  const [buildingId, setBuildingId] = useState(null);
+  const [buildingFormMode, setBuildingFormMode] = useState('view');
 
   // Persist active section across refreshes in this session
   useEffect(() => {
@@ -37,8 +43,20 @@ const Dashboard = ({ user, onLogout }) => {
         return <JobManagementPage />;
       case 'function-management':
         return <FunctionManagementPage />;
+      case 'company-overview':
+        return <CompanyOverviewPage />;
+      case 'companies':
+        return <CompanyManagementPage />;
+      case 'buildings':
+        return <BuildingManagementPage />;
+      case 'building-detail':
+        return <BuildingDetailPage />;
+      case 'building-floors':
+        return <FloorManagementPage />;
+      // Backward compatibility for persisted sessions/older ids
+      case 'company-management':
       case 'organization-management':
-        return <OrganizationManagementPage />;
+        return <CompanyManagementPage />;
       case 'ai-processes':
         return <AIProcessesPage />;
       case 'role-management':
@@ -59,7 +77,12 @@ const Dashboard = ({ user, onLogout }) => {
       activeSection={activeSection}
       setActiveSection={setActiveSection}
     >
-      <AppProvider value={{ setActiveSection, layoutCompanyId, setLayoutCompanyId }}>
+      <AppProvider value={{
+        setActiveSection,
+        layoutCompanyId, setLayoutCompanyId,
+        buildingId, setBuildingId,
+        buildingFormMode, setBuildingFormMode,
+      }}>
         <div className="page-router">
           {renderContent()}
         </div>

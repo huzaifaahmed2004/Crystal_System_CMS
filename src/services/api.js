@@ -6,10 +6,21 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BASE
 class ApiService {
   async request(endpoint, options = {}) {
     const url = /^https?:\/\//i.test(endpoint) ? endpoint : `${API_BASE_URL}${endpoint}`;
+    // Read access token from sessionStorage
+    let token = null;
+    try {
+      const raw = sessionStorage.getItem('auth');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        token = parsed?.accessToken || null;
+      }
+    } catch (_) {}
+
     const config = {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
       ...options,

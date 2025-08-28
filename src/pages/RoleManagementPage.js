@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
 import { getRoles, getRoleById, createRole, patchRole, deleteRole, deleteRolesBulk } from '../services/roleService';
+import Modal from '../components/ui/Modal';
+import FormModal from '../components/ui/FormModal';
 
-const emptyForm = { name: '', description: '' };
+const emptyForm = { role_id: '', name: '', description: '' };
 
 const RoleManagementPage = () => {
   const [roles, setRoles] = useState([]);
@@ -14,7 +16,12 @@ const RoleManagementPage = () => {
   const [editForm, setEditForm] = useState(emptyForm);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
+  const [createError, setCreateError] = useState('');
   const [searchId, setSearchId] = useState('');
+  const [modal, setModal] = useState({ open: false, title: 'Notice', message: '' });
+
+  const openModal = (title, message) => setModal({ open: true, title, message });
+  const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
   useEffect(() => {
     (async () => {
@@ -58,14 +65,15 @@ const RoleManagementPage = () => {
 
   const saveEdit = async (idOverride) => {
     const rawId = (idOverride !== undefined && idOverride !== null) ? idOverride : editingId;
-    alert(`saveEdit start: rawId=${rawId}, name=${editForm?.name || ''}`);
+    // Debug info via console, user-facing via modal when needed
+    console.log(`saveEdit start: rawId=${rawId}, name=${editForm?.name || ''}`);
     // Allow 0 as valid id; only guard null/undefined
-    if (rawId === null || rawId === undefined) { alert('No editingId set'); return; }
+    if (rawId === null || rawId === undefined) { openModal('Edit error', 'No role selected for editing'); return; }
     const idNum = Number(rawId);
-    if (!Number.isInteger(idNum)) { alert(`Invalid role id: ${rawId}`); setError('Invalid role id'); return; }
+    if (!Number.isInteger(idNum)) { openModal('Edit error', `Invalid role id: ${rawId}`); setError('Invalid role id'); return; }
     try {
       const payload = { name: editForm.name.trim(), description: editForm.description.trim() };
-      if (!payload.name) { alert('Name is required'); return; }
+      if (!payload.name) { openModal('Validation', 'Name is required'); return; }
       // Debug: confirm Save triggers
       console.log('Saving role via PATCH', { rawId, idNum, payload });
       const updated = await patchRole(idNum, payload);
@@ -103,22 +111,41 @@ const RoleManagementPage = () => {
     }
   };
 
-  const toggleCreate = () => {
-    setCreating((v) => !v);
+  const computeNextRoleId = () => {
+    const ids = roles.map(r => Number(r.role_id)).filter((n) => Number.isInteger(n));
+    const maxId = ids.length ? Math.max(...ids) : 0;
+    return maxId + 1;
+  };
+
+  const openCreateRole = () => {
+    setCreateForm({ role_id: String(computeNextRoleId()), name: '', description: '' });
+    setCreateError('');
+    setCreating(true);
+  };
+
+  const cancelCreateRole = () => {
+    setCreating(false);
     setCreateForm(emptyForm);
+    setCreateError('');
   };
 
   const submitCreate = async (e) => {
     e?.preventDefault?.();
-    const payload = { name: createForm.name.trim(), description: createForm.description.trim() };
-    if (!payload.name) return;
+    const payload = { 
+      role_id: Number(createForm.role_id),
+      name: createForm.name.trim(), 
+      description: createForm.description.trim() 
+    };
+    if (!Number.isInteger(payload.role_id) || payload.role_id <= 0) { setCreateError('Role ID must be a positive integer'); return; }
+    if (!payload.name) { setCreateError('Name is required'); return; }
+    if (roles.some(r => Number(r.role_id) === payload.role_id)) { setCreateError('Role ID already exists'); return; }
     try {
       const created = await createRole(payload);
       const normalized = created?.role_id ? created : (created?.id ? { ...created, role_id: created.id } : created);
       setRoles((prev) => [normalized, ...prev]);
-      toggleCreate();
+      cancelCreateRole();
     } catch (e) {
-      setError(e?.message || 'Failed to create role');
+      setCreateError(e?.message || 'Failed to create role');
     }
   };
 
@@ -161,6 +188,7 @@ const RoleManagementPage = () => {
   };
 
   return (
+    <>
     <div className="page-container">
       <div className="page-header">
         <div className="header-content">
@@ -182,7 +210,7 @@ const RoleManagementPage = () => {
               <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
               <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
             </div>
-            <button className="primary-btn" onClick={toggleCreate}>+ Create Role</button>
+            <button className="primary-btn" onClick={openCreateRole}>+ Create Role</button>
             <button className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
           </div>
         </div>
@@ -194,33 +222,7 @@ const RoleManagementPage = () => {
           <div className="no-results">Loading roles...</div>
         ) : (
           <>
-            {creating && (
-              <form className="role-card create-card" onSubmit={submitCreate}>
-                <div className="field">
-                  <label>Name</label>
-                  <input
-                    type="text"
-                    value={createForm.name}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Role name"
-                    required
-                  />
-                </div>
-                <div className="field">
-                  <label>Description</label>
-                  <input
-                    type="text"
-                    value={createForm.description}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-                    placeholder="Short description"
-                  />
-                </div>
-                <div className="actions">
-                  <button type="button" className="secondary-btn" onClick={toggleCreate}>Cancel</button>
-                  <button type="submit" className="primary-btn">Create</button>
-                </div>
-              </form>
-            )}
+            {false && creating}
 
             <div className="roles-table">
               <div className="roles-table-header">
@@ -271,13 +273,12 @@ const RoleManagementPage = () => {
                               try {
                                 e.preventDefault(); 
                                 e.stopPropagation(); 
-                                alert('Save clicked'); 
                                 console.log('Save clicked'); 
                                 console.log('Pre-save state', { editingId, editForm });
                                 await saveEdit(role.role_id); 
                               } catch (err) {
                                 console.error('saveEdit click error', err);
-                                alert(`saveEdit click error: ${err?.message || err}`);
+                                openModal('Save error', err?.message || String(err));
                               }
                             }}
                           >
@@ -310,6 +311,48 @@ const RoleManagementPage = () => {
         )}
       </div>
     </div>
+    <FormModal
+      open={creating}
+      title="Create Role"
+      onCancel={cancelCreateRole}
+      footer={(
+        <>
+          <button type="button" className="primary-btn" onClick={submitCreate}>Create</button>
+          <button type="button" className="secondary-btn" onClick={cancelCreateRole}>Cancel</button>
+        </>
+      )}
+    >
+      {createError && (<div className="error-banner" style={{ marginBottom: 12 }}>{createError}</div>)}
+      <div className="role-card create-card">
+        <div className="field">
+          <label>Role ID</label>
+          <input type="number" min="1" value={createForm.role_id} disabled readOnly />
+        </div>
+        <div className="field">
+          <label>Name</label>
+          <input
+            type="text"
+            value={createForm.name}
+            onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="Role name"
+            required
+          />
+        </div>
+        <div className="field">
+          <label>Description</label>
+          <input
+            type="text"
+            value={createForm.description}
+            onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="Short description"
+          />
+        </div>
+      </div>
+    </FormModal>
+    <Modal open={modal.open} title={modal.title} onCancel={closeModal} cancelText="Close">
+      {modal.message}
+    </Modal>
+    </>
   );
 };
 

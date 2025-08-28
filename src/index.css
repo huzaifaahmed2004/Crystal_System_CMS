@@ -22,10 +22,11 @@ code {
 /* Auth Container Styles */
 .auth-container {
   min-height: 100vh;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3rem 1rem;
+  padding: 0; /* Remove extra padding to avoid vertical scrollbar */
 }
 
 .auth-card {
@@ -213,6 +214,7 @@ code {
 /* Login specific background */
 .login-container {
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  overflow: hidden; /* Ensure no scroll on login viewport */
 }
 
 /* Signup specific background */

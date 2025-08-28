@@ -1,33 +1,318 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import '../styles/user-management.css';
+import '../styles/role-management.css';
+import FormModal from '../components/ui/FormModal';
+import { getUsers, createUser, patchUser, deleteUser } from '../services/userService';
+import { getRoles } from '../services/roleService';
+
+const emptyCreate = { user_id: '', name: '', email: '', password: '', role_id: '' };
 
 const UserAccessControlPage = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState(emptyCreate);
+  const [createError, setCreateError] = useState('');
+
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', role_id: '' });
+
+  const roleNameById = useMemo(() => {
+    const m = new Map();
+    roles.forEach(r => m.set(Number(r.role_id), r.name));
+    return m;
+  }, [roles]);
+
+  const reload = async () => {
+    try {
+      setLoading(true);
+      const [u, r] = await Promise.all([
+        getUsers(),
+        getRoles(),
+      ]);
+      setUsers(Array.isArray(u) ? u : []);
+      setRoles(Array.isArray(r) ? r : []);
+      setError(null);
+    } catch (e) {
+      setError(e?.message || 'Failed to load users or roles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const allSelected = useMemo(() => users.length > 0 && selectedIds.size === users.length, [users, selectedIds]);
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(users.map(u => u.user_id)));
+    }
+  };
+
+  const toggleSelect = (id) => {
+    const next = new Set(selectedIds);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedIds(next);
+  };
+
+  const startEdit = (user) => {
+    setEditingId(user.user_id);
+    setEditForm({ name: user.name || '', email: user.email || '', role_id: String(user.role_id ?? '') });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({ name: '', email: '', role_id: '' });
+  };
+
+  const saveEdit = async (idOverride) => {
+    const rawId = (idOverride !== undefined && idOverride !== null) ? idOverride : editingId;
+    if (rawId === null || rawId === undefined) { setError('No user selected for editing'); return; }
+    const idNum = Number(rawId);
+    if (!Number.isInteger(idNum)) { setError('Invalid user id'); return; }
+    const payload = {
+      name: (editForm.name || '').trim(),
+      email: (editForm.email || '').trim(),
+      role_id: Number(editForm.role_id),
+    };
+    if (!payload.name) { setError('Name is required'); return; }
+    if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) { setError('Valid email is required'); return; }
+    if (!Number.isInteger(payload.role_id)) { setError('Role is required'); return; }
+    try {
+      const updated = await patchUser(idNum, payload);
+      const merged = (updated && typeof updated === 'object') ? updated : payload;
+      setUsers((prev) => prev.map(u => (Number(u.user_id) === idNum ? { ...u, ...merged } : u)));
+      cancelEdit();
+    } catch (e) {
+      setError(e?.message || 'Failed to update user');
+    }
+  };
+
+  const removeSingle = async (id) => {
+    try {
+      await deleteUser(id);
+      setUsers((prev) => prev.filter(u => u.user_id !== id));
+      setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+    } catch (e) {
+      setError(e?.message || 'Failed to delete user');
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedIds);
+      // simple sequential delete to keep consistent with available service
+      for (const id of ids) { // eslint-disable-line no-restricted-syntax
+        // eslint-disable-next-line no-await-in-loop
+        await deleteUser(id);
+      }
+      setUsers((prev) => prev.filter(u => !selectedIds.has(u.user_id)));
+      setSelectedIds(new Set());
+    } catch (e) {
+      setError(e?.message || 'Failed to delete selected users');
+    }
+  };
+
+  useEffect(() => { reload(); }, []);
+
+  const computeNextUserId = () => {
+    const ids = users.map(u => Number(u.user_id)).filter((n) => Number.isInteger(n));
+    const maxId = ids.length ? Math.max(...ids) : 0;
+    return maxId + 1;
+  };
+
+  const openCreate = () => {
+    setCreateForm({ ...emptyCreate, user_id: String(computeNextUserId()) });
+    setCreateError('');
+    setCreateOpen(true);
+  };
+  const closeCreate = () => setCreateOpen(false);
+
+  const handleCreate = async () => {
+    try {
+      setCreateError('');
+      const payload = {
+        user_id: Number(createForm.user_id),
+        name: (createForm.name || '').trim(),
+        email: (createForm.email || '').trim(),
+        password: (createForm.password || '').trim(),
+        role_id: Number(createForm.role_id),
+      };
+      if (!Number.isInteger(payload.user_id) || payload.user_id <= 0) { setCreateError('User ID must be a positive integer'); return; }
+      if (!payload.name) { setCreateError('Name is required'); return; }
+      if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) { setCreateError('Valid email is required'); return; }
+      if (!payload.password) { setCreateError('Password is required'); return; }
+      if (!Number.isInteger(payload.role_id)) { setCreateError('Role is required'); return; }
+      if (users.some(u => Number(u.user_id) === payload.user_id)) { setCreateError('User ID already exists'); return; }
+
+      await createUser(payload);
+      await reload();
+      closeCreate();
+    } catch (e) {
+      setCreateError(e?.message || 'Failed to create user');
+    }
+  };
+
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2 className="page-title">User & Access Control</h2>
-        <p className="page-subtitle">Manage users, roles, and permissions across the system</p>
-      </div>
-      
-      <div className="page-content">
-        <div className="coming-soon-card">
-          <div className="coming-soon-icon" aria-hidden="true">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-              <path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z" fill="currentColor"/>
-              <path d="M4 20a6 6 0 1112 0v1H4v-1zM18 10a3 3 0 110-6 3 3 0 010 6z" fill="currentColor" opacity="0.7"/>
-              <path d="M14.5 20c.3-2.9 2.8-5 5.5-5 1.2 0 2.3.3 3.2.9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.7"/>
-            </svg>
+        <div className="header-content">
+          <div>
+            <h2 className="page-title">User Management</h2>
+            <p className="page-subtitle">View all users and create new ones</p>
           </div>
-          <h3>User & Access Control</h3>
-          <p>This section will allow you to:</p>
-          <ul>
-            <li>Manage user accounts and profiles</li>
-            <li>Define roles and permissions</li>
-            <li>Control access to system features</li>
-            <li>Monitor user activity and sessions</li>
-          </ul>
-          <div className="coming-soon-badge">Coming Soon</div>
+          <div className="roles-toolbar">
+            <button type="button" className="primary-btn" onClick={openCreate}>Create User</button>
+            <button type="button" className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
+          </div>
         </div>
       </div>
+
+      <div className="page-content">
+        {error && <div className="error-banner" role="alert">{error}</div>}
+        {loading ? (
+          <div className="no-results">Loading users…</div>
+        ) : (
+          <div className="users-table">
+            <div className="users-table-header">
+              <div className="cell checkbox">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+              </div>
+              <div className="cell">Name</div>
+              <div className="cell">Email</div>
+              <div className="cell">Role</div>
+              <div className="cell actions">Actions</div>
+            </div>
+            {users.length === 0 ? (
+              <div className="no-results">No users found</div>
+            ) : (
+              users.map(u => (
+                <div key={u.user_id} className={`users-table-row ${selectedIds.has(u.user_id) ? 'selected' : ''}`}>
+                  <div className="cell checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(u.user_id)}
+                      onChange={() => toggleSelect(u.user_id)}
+                    />
+                  </div>
+                  {editingId === u.user_id ? (
+                    <>
+                      <div className="cell">
+                        <input
+                          type="text"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(u.user_id); } }}
+                        />
+                      </div>
+                      <div className="cell">
+                        <input
+                          type="email"
+                          value={editForm.email}
+                          onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(u.user_id); } }}
+                        />
+                      </div>
+                      <div className="cell">
+                        <select
+                          value={editForm.role_id}
+                          onChange={(e) => setEditForm((f) => ({ ...f, role_id: e.target.value }))}
+                        >
+                          <option value="">Select role</option>
+                          {roles.map(r => (
+                            <option key={r.role_id} value={r.role_id}>{r.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="cell actions">
+                        <button
+                          type="button"
+                          className="primary-btn sm"
+                          onClick={() => saveEdit(u.user_id)}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-btn sm"
+                          onClick={cancelEdit}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="cell">{u.name}</div>
+                      <div className="cell">{u.email}</div>
+                      <div className="cell">{roleNameById.get(Number(u.role_id)) || '—'}</div>
+                      <div className="cell actions">
+                        <button className="secondary-btn sm" onClick={() => startEdit(u)}>Edit</button>
+                        <button className="danger-btn sm" onClick={() => removeSingle(u.user_id)}>Delete</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <FormModal
+        open={createOpen}
+        title="Create User"
+        onCancel={closeCreate}
+        footer={(
+          <>
+            <button type="button" className="primary-btn" onClick={handleCreate}>Create</button>
+            <button type="button" className="secondary-btn" onClick={closeCreate}>Cancel</button>
+          </>
+        )}
+      >
+        {createError && (
+          <div className="error-banner" style={{ marginBottom: 12 }}>{createError}</div>
+        )}
+        <div className="role-card create-card">
+          <div className="field">
+            <label htmlFor="cu-userid">User ID</label>
+            <input id="cu-userid" type="number" min="1" value={createForm.user_id}
+                   disabled readOnly
+                   onChange={(e) => setCreateForm({ ...createForm, user_id: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="cu-name">Name</label>
+            <input id="cu-name" type="text" value={createForm.name}
+                   onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="cu-email">Email</label>
+            <input id="cu-email" type="email" value={createForm.email}
+                   onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="cu-password">Password</label>
+            <input id="cu-password" type="password" value={createForm.password}
+                   onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="cu-role">Role</label>
+            <select id="cu-role" value={createForm.role_id}
+                    onChange={(e) => setCreateForm({ ...createForm, role_id: e.target.value })}>
+              <option value="">Select role</option>
+              {roles.map(r => (
+                <option key={r.role_id} value={r.role_id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </FormModal>
     </div>
   );
 };
