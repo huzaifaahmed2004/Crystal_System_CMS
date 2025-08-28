@@ -3,17 +3,19 @@ import '../styles/role-management.css';
 import Modal from '../components/ui/Modal';
 import FormModal from '../components/ui/FormModal';
 import { getCompanies, getCompanyById, createCompany, patchCompany, deleteCompany, deleteCompaniesBulk } from '../services/companyService';
+import { getUsers } from '../services/userService';
 
-const emptyForm = { company_id: '', name: '' };
+const emptyForm = { companyCode: '', name: '' };
 
 const CompanyManagementPage = () => {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [users, setUsers] = useState([]);
 
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState({ companyCode: '', name: '' });
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
   const [createError, setCreateError] = useState('');
@@ -27,8 +29,12 @@ const CompanyManagementPage = () => {
     (async () => {
       try {
         setLoading(true);
-        const data = await getCompanies();
-        setCompanies(Array.isArray(data) ? data : []);
+        const [companiesData, usersData] = await Promise.all([
+          getCompanies(),
+          getUsers().catch(() => [])
+        ]);
+        setCompanies(Array.isArray(companiesData) ? companiesData : []);
+        setUsers(Array.isArray(usersData) ? usersData : []);
       } catch (e) {
         setError(e?.message || 'Failed to load companies');
       } finally {
@@ -36,6 +42,17 @@ const CompanyManagementPage = () => {
       }
     })();
   }, []);
+
+  const userNameById = useMemo(() => {
+    const m = new Map();
+    users.forEach(u => m.set(Number(u.user_id), u.name || u.email || `User #${u.user_id}`));
+    return m;
+  }, [users]);
+
+  const formatDate = (iso) => {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString(); } catch { return '—'; }
+  };
 
   const allSelected = useMemo(() => companies.length > 0 && selectedIds.size === companies.length, [companies, selectedIds]);
 
@@ -55,7 +72,7 @@ const CompanyManagementPage = () => {
 
   const startEdit = (company) => {
     setEditingId(company.company_id);
-    setEditForm({ company_id: String(company.company_id ?? ''), name: company.name || '' });
+    setEditForm({ companyCode: company.companyCode || '', name: company.name || '' });
   };
 
   const cancelEdit = () => {
@@ -69,19 +86,15 @@ const CompanyManagementPage = () => {
     const idNum = Number(prevId);
     if (!Number.isInteger(idNum)) { openModal('Edit error', `Invalid company id: ${prevId}`); setError('Invalid company id'); return; }
     try {
-      const payload = { company_id: editForm.company_id ? Number(editForm.company_id) : undefined, name: String(editForm.name || '').trim() };
+      const payload = { companyCode: String(editForm.companyCode || '').trim(), name: String(editForm.name || '').trim() };
+      if (!payload.companyCode) { openModal('Validation', 'Company Code is required'); return; }
       if (!payload.name) { openModal('Validation', 'Company Name is required'); return; }
       const updated = await patchCompany(idNum, payload);
-      const nextId = Number(updated.company_id ?? payload.company_id ?? idNum);
-      setCompanies((prev) => prev.map(c => (Number(c.company_id) === idNum ? { ...c, company_id: nextId, name: updated.name } : c)));
-      // Update selection if code changed
-      if (nextId !== idNum) {
-        setSelectedIds((prev) => {
-          const s = new Set(prev);
-          if (s.has(idNum)) { s.delete(idNum); s.add(nextId); }
-          return s;
-        });
-      }
+      setCompanies((prev) => prev.map(c => (
+        Number(c.company_id) === idNum
+          ? { ...c, companyCode: updated.companyCode ?? payload.companyCode, name: updated.name ?? payload.name }
+          : c
+      )));
       cancelEdit();
     } catch (e) {
       setError(e?.message || 'Failed to update company');
@@ -110,14 +123,10 @@ const CompanyManagementPage = () => {
     }
   };
 
-  const computeNextCompanyId = () => {
-    const ids = companies.map(c => Number(c.company_id)).filter((n) => Number.isInteger(n));
-    const maxId = ids.length ? Math.max(...ids) : 0;
-    return maxId + 1;
-  };
+  // Creating no longer uses numeric company_id; backend expects companyCode, name, created_by
 
   const openCreate = () => {
-    setCreateForm({ company_id: String(computeNextCompanyId()), name: '' });
+    setCreateForm({ companyCode: '', name: '' });
     setCreateError('');
     setCreating(true);
   };
@@ -130,14 +139,13 @@ const CompanyManagementPage = () => {
 
   const submitCreate = async (e) => {
     e?.preventDefault?.();
-    const company_id = Number(createForm.company_id);
+    const companyCode = String(createForm.companyCode || '').trim();
     const name = String(createForm.name || '').trim();
-    if (!Number.isInteger(company_id) || company_id <= 0) { setCreateError('Company Code must be a positive integer'); return; }
+    if (!companyCode) { setCreateError('Company Code is required'); return; }
     if (!name) { setCreateError('Company Name is required'); return; }
-    if (companies.some(c => Number(c.company_id) === company_id)) { setCreateError('Company Code already exists'); return; }
     try {
-      const created = await createCompany({ company_id, name });
-      const normalized = created?.company_id ? created : (created?.id ? { ...created, company_id: created.id } : created);
+      const created = await createCompany({ companyCode, name, created_by: 1 });
+      const normalized = created;
       setCompanies((prev) => [normalized, ...prev]);
       cancelCreate();
     } catch (e) {
@@ -178,7 +186,7 @@ const CompanyManagementPage = () => {
 
   return (
     <>
-    <div className="page-container">
+    <div className="page-container company-page">
       <div className="page-header">
         <div className="header-content">
           <div>
@@ -217,6 +225,9 @@ const CompanyManagementPage = () => {
               </div>
               <div className="cell name">Company Code</div>
               <div className="cell description">Company Name</div>
+              <div className="cell created-by">Created by</div>
+              <div className="cell created-at">Created at</div>
+              <div className="cell updated-at">Updated at</div>
               <div className="cell actions">Actions</div>
             </div>
 
@@ -237,10 +248,9 @@ const CompanyManagementPage = () => {
                     <>
                       <div className="cell name">
                         <input
-                          type="number"
-                          min="1"
-                          value={editForm.company_id}
-                          onChange={(e) => setEditForm((f) => ({ ...f, company_id: e.target.value }))}
+                          type="text"
+                          value={editForm.companyCode}
+                          onChange={(e) => setEditForm((f) => ({ ...f, companyCode: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(c.company_id); } }}
                         />
                       </div>
@@ -252,6 +262,9 @@ const CompanyManagementPage = () => {
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(); } }}
                         />
                       </div>
+                      <div className="cell created-by">{userNameById.get(Number(c.created_by)) || (c.created_by ? `User #${c.created_by}` : '—')}</div>
+                      <div className="cell created-at">{formatDate(c.created_at)}</div>
+                      <div className="cell updated-at">{formatDate(c.updated_at)}</div>
                       <div className="cell actions">
                         <button type="button" className="primary-btn sm" onClick={() => saveEdit(c.company_id)}>Save</button>
                         <button type="button" className="secondary-btn sm" onClick={cancelEdit}>Cancel</button>
@@ -259,8 +272,11 @@ const CompanyManagementPage = () => {
                     </>
                   ) : (
                     <>
-                      <div className="cell name">{c.company_id}</div>
+                      <div className="cell name">{c.companyCode || '—'}</div>
                       <div className="cell description">{c.name}</div>
+                      <div className="cell created-by">{userNameById.get(Number(c.created_by)) || (c.created_by ? `User #${c.created_by}` : '—')}</div>
+                      <div className="cell created-at">{formatDate(c.created_at)}</div>
+                      <div className="cell updated-at">{formatDate(c.updated_at)}</div>
                       <div className="cell actions">
                         <button className="secondary-btn sm" onClick={() => startEdit(c)}>Edit</button>
                         <button className="danger-btn sm" onClick={() => removeSingle(c.company_id)}>Delete</button>
@@ -290,7 +306,13 @@ const CompanyManagementPage = () => {
       <div className="role-card create-card">
         <div className="field">
           <label>Company Code</label>
-          <input type="number" min="1" value={createForm.company_id} disabled readOnly />
+          <input
+            type="text"
+            value={createForm.companyCode}
+            onChange={(e) => setCreateForm((f) => ({ ...f, companyCode: e.target.value }))}
+            placeholder="e.g., CSP"
+            required
+          />
         </div>
         <div className="field">
           <label>Company Name</label>

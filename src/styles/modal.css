@@ -14,6 +14,10 @@
   background: #ffffff;
   border-radius: 12px;
   box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+  /* Constrain height to viewport and allow internal sections to manage overflow */
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   transform: scale(0.96);
   opacity: 0;
@@ -43,6 +47,9 @@
   padding: 16px;
   color: #374151;
   font-size: 14px;
+  /* Make the body scroll when content exceeds panel height */
+  overflow-y: auto;
+  flex: 1 1 auto;
 }
 
 .modal-footer {

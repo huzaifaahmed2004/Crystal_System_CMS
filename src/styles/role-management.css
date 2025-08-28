@@ -129,6 +129,20 @@
   align-items: center;
 }
 
+/* Company page adds Created By, Created At, Updated At columns */
+.company-page .roles-table-header,
+.company-page .roles-table-row {
+  grid-template-columns: 48px 1.2fr 1.8fr 1.4fr 1.2fr 1.2fr 220px;
+}
+
+/* Prevent date columns from wrapping on company page */
+.company-page .roles-table-header .created-at,
+.company-page .roles-table-header .updated-at,
+.company-page .roles-table-row .created-at,
+.company-page .roles-table-row .updated-at {
+  white-space: nowrap;
+}
+
 .roles-table-header { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom: 1px solid #e5e7eb; font-weight: 700; color: #1f2937; }
 .roles-table-header .cell { padding: 12px 16px; font-size: 0.9rem; }
 

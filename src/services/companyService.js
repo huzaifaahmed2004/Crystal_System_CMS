@@ -10,7 +10,11 @@ import api from './api';
 
 const normalizeCompany = (dto) => ({
   company_id: dto?.company_id ?? dto?.id,
-  name: dto?.name ?? ''
+  companyCode: dto?.companyCode ?? dto?.code ?? dto?.company_code ?? '',
+  name: dto?.name ?? '',
+  created_by: dto?.created_by ?? dto?.createdBy ?? null,
+  created_at: dto?.created_at ?? dto?.createdAt ?? null,
+  updated_at: dto?.updated_at ?? dto?.updatedAt ?? null,
 });
 
 export async function getCompanies() {
@@ -32,21 +36,26 @@ export async function getCompanyById(id) {
   return res ? normalizeCompany(res) : null;
 }
 
-export async function createCompany({ company_id, name }) {
-  const payload = { company_id: Number(company_id), name: String(name || '').trim() };
+export async function createCompany({ companyCode, name, created_by = 1 }) {
+  const payload = {
+    companyCode: String(companyCode || '').trim(),
+    name: String(name || '').trim(),
+    created_by: Number(created_by) || 1,
+  };
   const res = await api.post('/company', payload);
+  // If backend returns empty, synthesize using payload
   return res ? normalizeCompany(res) : normalizeCompany(payload);
 }
 
 // Note: Including id in body assumes backend allows updating code (id).
 // If not, we will revise to only send name and provide a separate code-migration flow.
-export async function patchCompany(id, { company_id, name }) {
+export async function patchCompany(id, { companyCode, name }) {
   const payload = {};
+  if (companyCode !== undefined) payload.companyCode = String(companyCode).trim();
   if (name !== undefined) payload.name = String(name).trim();
-  if (company_id !== undefined && Number(company_id) !== Number(id)) payload.id = Number(company_id);
   const res = await api.patch(`/company/${id}`, payload);
-  // If backend returns 204/empty, synthesize updated object
-  return res ? normalizeCompany(res) : normalizeCompany({ id: payload.id ?? id, name: payload.name });
+  // If backend returns 204/empty, synthesize updated object using provided fields
+  return res ? normalizeCompany(res) : normalizeCompany({ id, companyCode: payload.companyCode, name: payload.name });
 }
 
 export async function deleteCompany(id) {
