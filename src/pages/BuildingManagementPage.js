@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
-import { getBuildings, getBuildingById, deleteBuilding, deleteBuildingsBulk } from '../services/buildingService';
+import { getBuildings, deleteBuilding, deleteBuildingsBulk } from '../services/buildingService';
 import { useAppContext } from '../context/AppContext';
 
 const BuildingManagementPage = () => {
   const { setActiveSection, setBuildingId, setBuildingFormMode } = useAppContext();
 
   const [buildings, setBuildings] = useState([]);
+  const [allBuildings, setAllBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -18,7 +19,9 @@ const BuildingManagementPage = () => {
       try {
         setLoading(true);
         const data = await getBuildings();
-        setBuildings(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setAllBuildings(list);
+        setBuildings(list);
       } catch (e) {
         setError(e?.message || 'Failed to load buildings');
       } finally {
@@ -47,7 +50,9 @@ const BuildingManagementPage = () => {
     try {
       setLoading(true);
       const data = await getBuildings();
-      setBuildings(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setAllBuildings(list);
+      setBuildings(list);
       setError(null);
     } catch (e) {
       setError('Failed to load buildings');
@@ -57,22 +62,18 @@ const BuildingManagementPage = () => {
   };
 
   const handleSearch = async () => {
-    const id = String(searchId).trim();
-    if (!id) {
+    const term = String(searchId).trim().toLowerCase();
+    if (!term) {
       await reloadAll();
       return;
     }
-    try {
-      setLoading(true);
-      const item = await getBuildingById(id);
-      setBuildings(item ? [item] : []);
-      setError(null);
-    } catch (e) {
-      setBuildings([]);
-      setError(e?.message || 'No building found for the provided code');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    const filtered = allBuildings.filter((b) => String(b.building_code || '')
+      .toLowerCase()
+      .includes(term));
+    setBuildings(filtered);
+    setError(null);
+    setLoading(false);
   };
 
   const clearSearch = async () => {
@@ -118,7 +119,6 @@ const BuildingManagementPage = () => {
               <input
                 className="search-input"
                 type="text"
-                inputMode="numeric"
                 placeholder="Search by Building Code"
                 value={searchId}
                 onChange={(e) => setSearchId(e.target.value)}
@@ -163,7 +163,7 @@ const BuildingManagementPage = () => {
                     />
                   </div>
                   <div className="cell">{b.name}</div>
-                  <div className="cell">{b.building_id}</div>
+                  <div className="cell">{b.building_code || '-'}</div>
                   <div className="cell">{b.country}</div>
                   <div className="cell">{b.city}</div>
                   <div className="cell actions">

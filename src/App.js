@@ -5,6 +5,9 @@ import './styles/dashboard.css';
 import './styles/dashboard-page.css';
 
 function App() {
+  // Temporary: bypass auth to work on frontend while backend is down
+  const DEV_BYPASS_AUTH = true; // set to false to restore login routing
+
   // Initialize from sessionStorage so refresh retains session
   const initialAuth = (() => {
     try {
@@ -15,8 +18,8 @@ function App() {
     }
   })();
 
-  const [isAuthenticated, setIsAuthenticated] = useState(!!initialAuth);
-  const [user, setUser] = useState(initialAuth?.user || null);
+  const [isAuthenticated, setIsAuthenticated] = useState(DEV_BYPASS_AUTH ? true : !!initialAuth);
+  const [user, setUser] = useState(DEV_BYPASS_AUTH ? { name: 'Admin' } : (initialAuth?.user || null));
 
   // onLogin expects { user, accessToken }
   const handleLogin = (authPayload) => {
@@ -41,7 +44,7 @@ function App() {
 
   return (
     <div className="App">
-      {isAuthenticated ? (
+      {(DEV_BYPASS_AUTH || isAuthenticated) ? (
         <Dashboard user={user} onLogout={handleLogout} />
       ) : (
         <Login onLogin={handleLogin} />

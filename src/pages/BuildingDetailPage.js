@@ -5,7 +5,8 @@ import { getCompanies } from '../services/companyService';
 import { getBuildingById, createBuilding, patchBuilding, deleteBuilding } from '../services/buildingService';
 
 const emptyForm = {
-  building_id: '',
+  building_id: '', // internal numeric id (hidden in UI)
+  building_code: '', // shown in UI (string)
   name: '',
   company_id: '',
   country: '',
@@ -42,10 +43,11 @@ const BuildingDetailPage = () => {
         if (!mounted) return;
         setCompanies(Array.isArray(companiesData) ? companiesData : []);
         if (isCreate) {
-          setForm({ ...emptyForm, floors: 0 });
+          setForm({ ...emptyForm, floors: 0, building_code: '' });
         } else if (buildingData) {
           setForm({
             building_id: buildingData.building_id ?? '',
+            building_code: buildingData.building_code ?? '',
             name: buildingData.name ?? '',
             company_id: buildingData.company_id ?? '',
             country: buildingData.country ?? '',
@@ -82,14 +84,12 @@ const BuildingDetailPage = () => {
 
   const validate = () => {
     const errors = [];
-    const id = Number(form.building_id);
-    if (isCreate && (!Number.isInteger(id) || id <= 0)) errors.push('Building code must be a positive integer');
+    // building_id is internal numeric and hidden; no validation required for UI-only now
     if (!String(form.name || '').trim()) errors.push('Building name is required');
     if ((isCreate || isEdit) && (form.company_id === '' || form.company_id === null || Number.isNaN(Number(form.company_id)))) errors.push('Company is required');
-    const rows = Number(form.rows), cols = Number(form.columns), floors = Number(form.floors);
+    const rows = Number(form.rows), cols = Number(form.columns);
     if ((isCreate || isEdit) && (!Number.isInteger(rows) || rows < 0)) errors.push('Rows must be a non-negative integer');
     if ((isCreate || isEdit) && (!Number.isInteger(cols) || cols < 0)) errors.push('Columns must be a non-negative integer');
-    if ((isCreate || isEdit) && (!Number.isInteger(floors) || floors < 0)) errors.push('Floors must be a non-negative integer');
     return errors;
   };
 
@@ -98,14 +98,13 @@ const BuildingDetailPage = () => {
     if (errs.length) { setError(errs[0]); return; }
     try {
       await createBuilding({
-        building_id: Number(form.building_id),
+        building_code: String(form.building_code || '').trim(),
         name: String(form.name).trim(),
         company_id: Number(form.company_id),
         country: String(form.country || '').trim(),
         city: String(form.city || '').trim(),
         rows: Number(form.rows) || 0,
         columns: Number(form.columns) || 0,
-        floors: Number(form.floors) || 0,
       });
       backToList();
     } catch (e) {
@@ -118,14 +117,13 @@ const BuildingDetailPage = () => {
     if (errs.length) { setError(errs[0]); return; }
     try {
       await patchBuilding(buildingId, {
-        building_id: Number(form.building_id),
+        building_code: String(form.building_code || '').trim(),
         name: String(form.name).trim(),
         company_id: Number(form.company_id),
         country: String(form.country || '').trim(),
         city: String(form.city || '').trim(),
         rows: Number(form.rows) || 0,
         columns: Number(form.columns) || 0,
-        floors: Number(form.floors) || 0,
       });
       backToList();
     } catch (e) {
@@ -197,10 +195,9 @@ const BuildingDetailPage = () => {
               <div className="field">
                 <label>Building Code</label>
                 <input
-                  type="number"
-                  min="1"
-                  value={form.building_id}
-                  onChange={(e) => setForm((f) => ({ ...f, building_id: e.target.value }))}
+                  type="text"
+                  value={form.building_code}
+                  onChange={(e) => setForm((f) => ({ ...f, building_code: e.target.value }))}
                   disabled={isReadOnly}
                 />
               </div>
@@ -252,17 +249,24 @@ const BuildingDetailPage = () => {
                   disabled={isReadOnly}
                 />
               </div>
-              <div className="field">
-                <label>Floors</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.floors}
-                  readOnly
-                  disabled
-                />
-                <small style={{ color: '#666' }}>Floors are managed separately. Use "Manage Floors" to add/remove floors. Rows/Columns apply to all floors.</small>
-              </div>
+              {!isCreate && (
+                <div className="field">
+                  <label>
+                    Floors
+                    {' '}
+                    <a href="#floors" onClick={(e) => { e.preventDefault(); setActiveSection('building-floors'); }} style={{ fontWeight: 500 }}>
+                      (open Floors)
+                    </a>
+                  </label>
+                  <textarea
+                    value={''}
+                    readOnly
+                    disabled
+                    placeholder="Floor names will appear here (read-only). Manage floors from the Floors section."
+                    style={{ minHeight: '100px', backgroundColor: '#f5f5f5' }}
+                  />
+                </div>
+              )}
               <div className="actions">
                 {isCreate && (
                   <>
@@ -291,4 +295,4 @@ const BuildingDetailPage = () => {
   );
 };
 
-export default BuildingDetailPage;
+export default BuildingDetail
