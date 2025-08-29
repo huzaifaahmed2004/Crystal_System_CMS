@@ -1,12 +1,15 @@
 import api from './api';
 
-const normalizeFloor = (dto) => ({
+export const normalizeFloor = (dto) => ({
+  // Support multiple API shapes: snake_case, camelCase, legacy
   floor_id: dto?.floor_id ?? dto?.id,
-  floor_code: dto?.floor_code ?? dto?.code ?? '',
+  floor_code: dto?.floor_code ?? dto?.floorCode ?? dto?.code ?? '',
   name: dto?.name ?? '',
-  building_id: dto?.building_id ?? null,
+  building_id: dto?.building_id ?? dto?.buildingId ?? null,
   rows: dto?.rows ?? 0,
   columns: dto?.columns ?? 0,
+  created_at: dto?.created_at ?? dto?.createdAt ?? null,
+  updated_at: dto?.updated_at ?? dto?.updatedAt ?? null,
 });
 
 export async function getFloors() {

@@ -137,6 +137,29 @@ const UserAccessControlPage = () => {
 
   useEffect(() => { reload(); }, []);
 
+  const splitDateTime = (iso) => {
+    if (!iso) return { date: '—', time: '' };
+    try {
+      const d = new Date(iso);
+      return {
+        date: d.toLocaleDateString(),
+        time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+    } catch {
+      return { date: '—', time: '' };
+    }
+  };
+
+  const renderDateTime = (iso) => {
+    const { date, time } = splitDateTime(iso);
+    return (
+      <div className="dt-wrap">
+        <div>{date}</div>
+        <div className="subtext">{time}</div>
+      </div>
+    );
+  };
+
   const openCreate = () => {
     setCreateForm({ ...emptyCreate });
     setCreateError('');
@@ -256,8 +279,8 @@ const UserAccessControlPage = () => {
                           ))}
                         </select>
                       </div>
-                      <div className="cell">{u.updated_at ? new Date(u.updated_at).toLocaleDateString() : '—'}</div>
-                      <div className="cell">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</div>
+                      <div className="cell">{renderDateTime(u.updated_at)}</div>
+                      <div className="cell">{renderDateTime(u.created_at)}</div>
                       <div className="cell actions">
                         <button
                           type="button"
@@ -281,8 +304,8 @@ const UserAccessControlPage = () => {
                       <div className="cell">{u.email}</div>
                       <div className="cell">{roleNameById.get(Number(u.role_id)) || '—'}</div>
                       <div className="cell">{companyNameById.get(Number(u.company_id)) || '—'}</div>
-                      <div className="cell">{u.updated_at ? new Date(u.updated_at).toLocaleDateString() : '—'}</div>
-                      <div className="cell">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</div>
+                      <div className="cell">{renderDateTime(u.updated_at)}</div>
+                      <div className="cell">{renderDateTime(u.created_at)}</div>
                       <div className="cell actions">
                         <button className="secondary-btn sm" onClick={() => startEdit(u)}>Edit</button>
                         <button className="danger-btn sm" onClick={() => removeSingle(u.user_id)}>Delete</button>

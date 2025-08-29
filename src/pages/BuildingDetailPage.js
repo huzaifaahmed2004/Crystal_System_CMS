@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
 import { useAppContext } from '../context/AppContext';
 import { getCompanies } from '../services/companyService';
-import { getBuildingById, createBuilding, patchBuilding, deleteBuilding } from '../services/buildingService';
+import { getBuildingById, getBuildingWithRelations, createBuilding, patchBuilding, deleteBuilding } from '../services/buildingService';
 
 const emptyForm = {
   building_id: '', // internal numeric id (hidden in UI)
@@ -13,7 +13,9 @@ const emptyForm = {
   city: '',
   rows: '',
   columns: '',
-  floors: ''
+  floors: '',
+  stairs_cell: '',
+  elevator_cell: ''
 };
 
 const BuildingDetailPage = () => {
@@ -23,6 +25,7 @@ const BuildingDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [companies, setCompanies] = useState([]);
+  const [floors, setFloors] = useState([]);
 
   const mode = buildingFormMode || 'view';
   const isCreate = mode === 'create';
@@ -31,20 +34,49 @@ const BuildingDetailPage = () => {
   const isDelete = mode === 'delete';
   const isReadOnly = isView || isDelete;
 
+  // Persist current buildingId (if present)
+  useEffect(() => {
+    if (buildingId != null) {
+      try { localStorage.setItem('lastBuildingId', String(buildingId)); } catch {}
+    }
+  }, [buildingId]);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         setLoading(true);
+        const storedId = (() => { try { return localStorage.getItem('lastBuildingId'); } catch { return null; } })();
+        const effectiveId = buildingId ?? (storedId ? Number(storedId) : null);
         const [companiesData, buildingData] = await Promise.all([
           getCompanies(),
-          isCreate ? Promise.resolve(null) : getBuildingById(buildingId)
+          isCreate ? Promise.resolve(null) : (
+            isView ? (
+              effectiveId != null ? getBuildingWithRelations(effectiveId) : Promise.resolve(null)
+            ) : (
+              effectiveId != null ? getBuildingById(effectiveId) : Promise.resolve(null)
+            )
+          )
         ]);
         if (!mounted) return;
         setCompanies(Array.isArray(companiesData) ? companiesData : []);
         if (isCreate) {
           setForm({ ...emptyForm, floors: 0, building_code: '' });
         } else if (buildingData) {
+          // For view mode, 'with-relations' returns cells (row/column, type)
+          const rowsVal = Number(buildingData.rows ?? 0) || 0;
+          const colsVal = Number(buildingData.columns ?? 0) || 0;
+          const cells = Array.isArray(buildingData.cells) ? buildingData.cells : [];
+          const findCellNum = (type) => {
+            const entry = cells.find((c) => String(c.type).toUpperCase() === type);
+            if (!entry || !colsVal) return '';
+            const r = Number(entry.row), c = Number(entry.column);
+            if (!Number.isFinite(r) || !Number.isFinite(c) || r < 1 || c < 1) return '';
+            return (r - 1) * colsVal + c; // 1-based cell index
+          };
+          const stairsCell = isView ? findCellNum('STAIRS') : (buildingData.stairs_cell ?? '');
+          const elevatorCell = isView ? findCellNum('ELEVATOR') : (buildingData.elevator_cell ?? '');
+
           setForm({
             building_id: buildingData.building_id ?? '',
             building_code: buildingData.building_code ?? '',
@@ -52,10 +84,18 @@ const BuildingDetailPage = () => {
             company_id: buildingData.company_id ?? '',
             country: buildingData.country ?? '',
             city: buildingData.city ?? '',
-            rows: buildingData.rows ?? '',
-            columns: buildingData.columns ?? '',
-            floors: buildingData.floors ?? ''
+            rows: rowsVal,
+            columns: colsVal,
+            floors: buildingData.floors ?? '',
+            stairs_cell: stairsCell,
+            elevator_cell: elevatorCell
           });
+          // In view mode, capture related floors if provided
+          if (isView) {
+            setFloors(Array.isArray(buildingData.floors) ? buildingData.floors : []);
+          } else {
+            setFloors([]);
+          }
         } else {
           setError('Building not found');
         }
@@ -67,7 +107,7 @@ const BuildingDetailPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [buildingId, isCreate]);
+  }, [buildingId, isCreate, isView]);
 
   const title = useMemo(() => {
     if (isCreate) return 'Create Building';
@@ -90,6 +130,14 @@ const BuildingDetailPage = () => {
     const rows = Number(form.rows), cols = Number(form.columns);
     if ((isCreate || isEdit) && (!Number.isInteger(rows) || rows < 0 || rows > 5)) errors.push('Rows must be an integer between 0 and 5');
     if ((isCreate || isEdit) && (!Number.isInteger(cols) || cols < 0 || cols > 10)) errors.push('Columns must be an integer between 0 and 10');
+    // Ensure stairs and elevator are not on same cell
+    if (isEdit || isCreate) {
+      const s = form.stairs_cell;
+      const e = form.elevator_cell;
+      if (s !== '' && e !== '' && Number(s) === Number(e)) {
+        errors.push('Stairs and elevator cannot be on the same cell');
+      }
+    }
     return errors;
   };
 
@@ -116,14 +164,33 @@ const BuildingDetailPage = () => {
     const errs = validate();
     if (errs.length) { setError(errs[0]); return; }
     try {
-      await patchBuilding(buildingId, {
+      const rows = Number(form.rows) || 0;
+      const columns = Number(form.columns) || 0;
+      const layout = [];
+      const toRowCol = (idx) => ({
+        row: Math.floor(idx / (columns || 1)) + 1,
+        column: (idx % (columns || 1)) + 1,
+      });
+      if (form.stairs_cell !== '' && Number.isFinite(Number(form.stairs_cell))) {
+        const { row, column } = toRowCol(Number(form.stairs_cell));
+        layout.push({ row, column, type: 'STAIRS' });
+      }
+      if (form.elevator_cell !== '' && Number.isFinite(Number(form.elevator_cell))) {
+        const { row, column } = toRowCol(Number(form.elevator_cell));
+        layout.push({ row, column, type: 'ELEVATOR' });
+      }
+
+      const storedId = (() => { try { return localStorage.getItem('lastBuildingId'); } catch { return null; } })();
+      const effectiveId = buildingId ?? (storedId ? Number(storedId) : null);
+      await patchBuilding(effectiveId, {
         building_code: String(form.building_code || '').trim(),
         name: String(form.name).trim(),
         company_id: Number(form.company_id),
         country: String(form.country || '').trim(),
         city: String(form.city || '').trim(),
-        rows: Number(form.rows) || 0,
-        columns: Number(form.columns) || 0,
+        rows: rows,
+        columns: columns,
+        ...(layout.length > 0 ? { layout } : {}),
       });
       backToList();
     } catch (e) {
@@ -135,7 +202,9 @@ const BuildingDetailPage = () => {
     const ok = window.confirm('Are you sure you want to delete this building?');
     if (!ok) return;
     try {
-      await deleteBuilding(buildingId);
+      const storedId = (() => { try { return localStorage.getItem('lastBuildingId'); } catch { return null; } })();
+      const effectiveId = buildingId ?? (storedId ? Number(storedId) : null);
+      await deleteBuilding(effectiveId);
       backToList();
     } catch (e) {
       setError(e?.message || 'Failed to delete building');
@@ -258,21 +327,82 @@ const BuildingDetailPage = () => {
                 />
               </div>
               {!isCreate && (
+                <>
+                  <div className="field">
+                    <label>Stairs Cell</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.stairs_cell}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const total = (Number(form.rows) || 0) * (Number(form.columns) || 0);
+                        let n = Number(v);
+                        if (!Number.isFinite(n) || n < 0) n = 0;
+                        if (total > 0) n = Math.min(n, Math.max(0, total - 1));
+                        setForm((f) => ({ ...f, stairs_cell: v === '' ? '' : n }));
+                      }}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Elevator Cell</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.elevator_cell}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const total = (Number(form.rows) || 0) * (Number(form.columns) || 0);
+                        let n = Number(v);
+                        if (!Number.isFinite(n) || n < 0) n = 0;
+                        if (total > 0) n = Math.min(n, Math.max(0, total - 1));
+                        setForm((f) => ({ ...f, elevator_cell: v === '' ? '' : n }));
+                      }}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                  {isView && (
+                    // Render read-only grid with highlights for stairs/elevator
+                    <div style={{ marginTop: 12 }}>
+                      {(Number(form.rows) || 0) > 0 && (Number(form.columns) || 0) > 0 && (
+                        <div className="grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${Number(form.columns)}, minmax(60px, 1fr))`, gap: 8 }}>
+                          {Array.from({ length: (Number(form.rows) || 0) * (Number(form.columns) || 0) }, (_, i) => {
+                            const n = i + 1;
+                            const isStairs = Number(form.stairs_cell) === n;
+                            const isElevator = Number(form.elevator_cell) === n;
+                            return (
+                              <div key={n} className={`cell ${isStairs ? 'stairs' : ''} ${isElevator ? 'elevator' : ''}`}>
+                                {n}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              {isView && (
                 <div className="field">
-                  <label>
-                    Floors
-                    {' '}
-                    <a href="#floors" onClick={(e) => { e.preventDefault(); setActiveSection('building-floors'); }} style={{ fontWeight: 500 }}>
-                      (open Floors)
-                    </a>
-                  </label>
-                  <textarea
-                    value={''}
-                    readOnly
-                    disabled
-                    placeholder="Floor names will appear here (read-only). Manage floors from the Floors section."
-                    style={{ minHeight: '100px', backgroundColor: '#f5f5f5' }}
-                  />
+                  <label>Floors</label>
+                  {floors.length === 0 ? (
+                    <div className="no-results" style={{ marginTop: 8 }}>No floors</div>
+                  ) : (
+                    <div className="roles-table" style={{ marginTop: 8 }}>
+                      <div className="roles-table-header" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                        <div className="cell">Floor Code</div>
+                        <div className="cell">Name</div>
+                      </div>
+                      {floors.map((fl) => (
+                        <div className="roles-table-row" key={fl.floor_id} style={{ gridTemplateColumns: '1fr 1fr' }}>
+                          <div className="cell">{fl.floor_code || '-'}</div>
+                          <div className="cell">{fl.name || '-'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                 </div>
               )}
               <div className="actions">
@@ -304,3 +434,32 @@ const BuildingDetailPage = () => {
 };
 
 export default BuildingDetailPage;
+
+// Inline styles for the read-only grid in View mode
+// Kept local to this page as requested (no global/style file changes)
+// Matches the styling used on the Edit page
+// Note: Using a fragment to inject a <style> tag adjacent to export is not valid.
+// So we attach this style by rendering it once at module load via document head if available.
+if (typeof document !== 'undefined') {
+  const STYLE_ID = 'building-detail-view-grid-styles';
+  if (!document.getElementById(STYLE_ID)) {
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+      .grid .cell {
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 60px;
+        font-weight: 600;
+      }
+      .grid .cell.stairs { outline: 2px solid #10b981; color: #0f766e; background: #ecfdf5; }
+      .grid .cell.elevator { outline: 2px solid #3b82f6; color: #1d4ed8; background: #eff6ff; }
+    `;
+    document.head.appendChild(style);
+  }
+}

@@ -49,9 +49,27 @@ const CompanyManagementPage = () => {
     return m;
   }, [users]);
 
-  const formatDate = (iso) => {
-    if (!iso) return '—';
-    try { return new Date(iso).toLocaleDateString(); } catch { return '—'; }
+  const splitDateTime = (iso) => {
+    if (!iso) return { date: '—', time: '' };
+    try {
+      const d = new Date(iso);
+      return {
+        date: d.toLocaleDateString(),
+        time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+    } catch {
+      return { date: '—', time: '' };
+    }
+  };
+
+  const renderDateTime = (iso) => {
+    const { date, time } = splitDateTime(iso);
+    return (
+      <div className="dt-wrap">
+        <div>{date}</div>
+        <div className="subtext">{time}</div>
+      </div>
+    );
   };
 
   const allSelected = useMemo(() => companies.length > 0 && selectedIds.size === companies.length, [companies, selectedIds]);
@@ -263,8 +281,8 @@ const CompanyManagementPage = () => {
                         />
                       </div>
                       <div className="cell created-by">{userNameById.get(Number(c.created_by)) || (c.created_by ? `User #${c.created_by}` : '—')}</div>
-                      <div className="cell created-at">{formatDate(c.created_at)}</div>
-                      <div className="cell updated-at">{formatDate(c.updated_at)}</div>
+                      <div className="cell created-at">{renderDateTime(c.created_at)}</div>
+                      <div className="cell updated-at">{renderDateTime(c.updated_at)}</div>
                       <div className="cell actions">
                         <button type="button" className="primary-btn sm" onClick={() => saveEdit(c.company_id)}>Save</button>
                         <button type="button" className="secondary-btn sm" onClick={cancelEdit}>Cancel</button>
@@ -275,8 +293,8 @@ const CompanyManagementPage = () => {
                       <div className="cell name">{c.companyCode || '—'}</div>
                       <div className="cell description">{c.name}</div>
                       <div className="cell created-by">{userNameById.get(Number(c.created_by)) || (c.created_by ? `User #${c.created_by}` : '—')}</div>
-                      <div className="cell created-at">{formatDate(c.created_at)}</div>
-                      <div className="cell updated-at">{formatDate(c.updated_at)}</div>
+                      <div className="cell created-at">{renderDateTime(c.created_at)}</div>
+                      <div className="cell updated-at">{renderDateTime(c.updated_at)}</div>
                       <div className="cell actions">
                         <button className="secondary-btn sm" onClick={() => startEdit(c)}>Edit</button>
                         <button className="danger-btn sm" onClick={() => removeSingle(c.company_id)}>Delete</button>

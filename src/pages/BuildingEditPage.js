@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
 import { useAppContext } from '../context/AppContext';
 import { getCompanies } from '../services/companyService';
-import { getBuildingById, patchBuilding } from '../services/buildingService';
+import { getBuildingWithRelations, patchBuilding } from '../services/buildingService';
+import Modal from '../components/ui/Modal';
 
 const MAX_ROWS = 5;
 const MAX_COLS = 10;
@@ -20,6 +21,8 @@ const BuildingEditPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [modalText, setModalText] = useState('');
   const [companies, setCompanies] = useState([]);
 
   const [form, setForm] = useState({
@@ -39,38 +42,64 @@ const BuildingEditPage = () => {
 
   const totalCells = useMemo(() => (Number(form.rows) || 0) * (Number(form.columns) || 0), [form.rows, form.columns]);
 
+  // Persist current buildingId (if present)
   useEffect(() => {
+    if (buildingId != null) {
+      try { localStorage.setItem('lastBuildingId', String(buildingId)); } catch {}
+    }
+  }, [buildingId]);
+
+  useEffect(() => {
+    const storedId = (() => { try { return localStorage.getItem('lastBuildingId'); } catch { return null; } })();
+    const effectiveId = buildingId ?? (storedId ? Number(storedId) : null);
     let mounted = true;
     (async () => {
       try {
         setLoading(true);
         const [companiesData, buildingData] = await Promise.all([
           getCompanies(),
-          getBuildingById(buildingId),
+          effectiveId != null ? getBuildingWithRelations(effectiveId) : Promise.resolve(null),
         ]);
         if (!mounted) return;
         setCompanies(Array.isArray(companiesData) ? companiesData : []);
         if (!buildingData) {
-          setError('Building not found');
+          setModalText('Building not found');
+          setShowModal(true);
           return;
         }
+        // Normalize columns first, then compute 1-based cell numbers from cells
+        const rows = clampInt(buildingData.rows ?? 0, 0, MAX_ROWS);
+        const columns = clampInt(buildingData.columns ?? 0, 0, MAX_COLS);
+        const cells = Array.isArray(buildingData.cells) ? buildingData.cells : [];
+        const findCellNum = (type) => {
+          const entry = cells.find((c) => String(c.type).toUpperCase() === type);
+          if (!entry || !columns) return '';
+          const r = Number(entry.row);
+          const c = Number(entry.column);
+          if (!Number.isFinite(r) || !Number.isFinite(c) || r < 1 || c < 1) return '';
+          return (r - 1) * columns + c; // 1-based cell index
+        };
+        const stairsCell = findCellNum('STAIRS');
+        const elevatorCell = findCellNum('ELEVATOR');
+
         setForm({
           building_id: buildingData.building_id ?? '',
-          building_code: buildingData.building_code ?? '',
+          building_code: buildingData.building_code ?? buildingData.buildingCode ?? '',
           name: buildingData.name ?? '',
           company_id: buildingData.company_id ?? '',
           country: buildingData.country ?? '',
           city: buildingData.city ?? '',
-          rows: clampInt(buildingData.rows ?? 0, 0, MAX_ROWS),
-          columns: clampInt(buildingData.columns ?? 0, 0, MAX_COLS),
-          stairs_enabled: !!(buildingData.stairs_cell),
-          stairs_cell: buildingData.stairs_cell ?? '',
-          elevator_enabled: !!(buildingData.elevator_cell),
-          elevator_cell: buildingData.elevator_cell ?? '',
+          rows,
+          columns,
+          stairs_enabled: stairsCell !== '',
+          stairs_cell: stairsCell,
+          elevator_enabled: elevatorCell !== '',
+          elevator_cell: elevatorCell,
         });
       } catch (e) {
         if (!mounted) return;
-        setError(e?.message || 'Failed to load data');
+        setModalText(e?.message || 'Failed to load data');
+        setShowModal(true);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -98,12 +127,20 @@ const BuildingEditPage = () => {
 
     if (form.stairs_enabled) checkCell(form.stairs_cell, 'Stairs cell');
     if (form.elevator_enabled) checkCell(form.elevator_cell, 'Elevator cell');
+    // At least one of stairs or elevator must be enabled with a valid cell
+    const hasStairs = form.stairs_enabled && Number.isInteger(Number(form.stairs_cell)) && Number(form.stairs_cell) >= 1 && Number(form.stairs_cell) <= maxCell;
+    const hasElevator = form.elevator_enabled && Number.isInteger(Number(form.elevator_cell)) && Number(form.elevator_cell) >= 1 && Number(form.elevator_cell) <= maxCell;
+    if (!hasStairs && !hasElevator) errors.push('Select at least one: stairs or elevator with a valid cell');
+    // Stairs and elevator cannot occupy the same cell
+    if (hasStairs && hasElevator && Number(form.stairs_cell) === Number(form.elevator_cell)) {
+      errors.push('Stairs and elevator cannot be on the same cell');
+    }
     return errors;
   };
 
   const handleSave = async () => {
     const errs = validate();
-    if (errs.length) { setError(errs[0]); return; }
+    if (errs.length) { setModalText(errs[0]); setShowModal(true); return; }
     const rows = clampInt(form.rows, 0, MAX_ROWS);
     const columns = clampInt(form.columns, 0, MAX_COLS);
     const payload = {
@@ -115,18 +152,36 @@ const BuildingEditPage = () => {
       rows,
       columns,
     };
+    // Build layout array from enabled features
     const maxCell = rows * columns;
-    if (form.stairs_enabled) payload.stairs_cell = Math.min(Math.max(1, Number(form.stairs_cell)), maxCell);
-    else payload.stairs_cell = null;
-    if (form.elevator_enabled) payload.elevator_cell = Math.min(Math.max(1, Number(form.elevator_cell)), maxCell);
-    else payload.elevator_cell = null;
+    const layout = [];
+    const toRowCol = (cell) => {
+      const idx = Math.min(Math.max(1, Number(cell)), maxCell);
+      const zero = idx - 1;
+      return {
+        row: Math.floor(zero / (columns || 1)) + 1,
+        column: (zero % (columns || 1)) + 1,
+      };
+    };
+    if (form.stairs_enabled && form.stairs_cell !== '' && Number.isFinite(Number(form.stairs_cell))) {
+      const { row, column } = toRowCol(form.stairs_cell);
+      layout.push({ row, column, type: 'STAIRS' });
+    }
+    if (form.elevator_enabled && form.elevator_cell !== '' && Number.isFinite(Number(form.elevator_cell))) {
+      const { row, column } = toRowCol(form.elevator_cell);
+      layout.push({ row, column, type: 'ELEVATOR' });
+    }
+    if (layout.length > 0) payload.layout = layout;
 
     try {
       setSaving(true);
-      await patchBuilding(buildingId, payload);
+      const storedId = (() => { try { return localStorage.getItem('lastBuildingId'); } catch { return null; } })();
+      const effectiveId = buildingId ?? (storedId ? Number(storedId) : null);
+      await patchBuilding(effectiveId, payload);
       backToList();
     } catch (e) {
-      setError(e?.message || 'Failed to save building');
+      setModalText(e?.message || 'Failed to save building');
+      setShowModal(true);
     } finally {
       setSaving(false);
     }
@@ -177,7 +232,7 @@ const BuildingEditPage = () => {
           <div className="no-results">Loading...</div>
         ) : (
           <>
-            {error && <div className="error-banner" style={{ marginBottom: 12 }}>{error}</div>}
+            {/* Error display via Modal below */}
             <div className="role-card create-card">
               <div className="field">
                 <label>Building Code</label>
@@ -262,7 +317,12 @@ const BuildingEditPage = () => {
                     max={Math.max(1, totalCells || 1)}
                     disabled={!form.stairs_enabled || totalCells === 0}
                     value={form.stairs_cell}
-                    onChange={(e) => setForm((f) => ({ ...f, stairs_cell: e.target.value }))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '') { setForm((f) => ({ ...f, stairs_cell: '' })); return; }
+                      const clamped = clampInt(v, 1, Math.max(1, totalCells || 1));
+                      setForm((f) => ({ ...f, stairs_cell: clamped }));
+                    }}
                     style={{ width: 120 }}
                   />
                 </div>
@@ -286,7 +346,12 @@ const BuildingEditPage = () => {
                     max={Math.max(1, totalCells || 1)}
                     disabled={!form.elevator_enabled || totalCells === 0}
                     value={form.elevator_cell}
-                    onChange={(e) => setForm((f) => ({ ...f, elevator_cell: e.target.value }))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '') { setForm((f) => ({ ...f, elevator_cell: '' })); return; }
+                      const clamped = clampInt(v, 1, Math.max(1, totalCells || 1));
+                      setForm((f) => ({ ...f, elevator_cell: clamped }));
+                    }}
                     style={{ width: 120 }}
                   />
                 </div>
@@ -320,6 +385,14 @@ const BuildingEditPage = () => {
         .grid .cell.stairs { outline: 2px solid #10b981; color: #0f766e; background: #ecfdf5; }
         .grid .cell.elevator { outline: 2px solid #3b82f6; color: #1d4ed8; background: #eff6ff; }
       `}</style>
+      <Modal
+        open={showModal}
+        title="Validation Error"
+        onCancel={() => setShowModal(false)}
+        cancelText="Close"
+      >
+        <div style={{ color: '#7f1d1d' }}>{modalText}</div>
+      </Modal>
     </div>
   );
 };
