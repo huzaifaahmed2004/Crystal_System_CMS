@@ -12,7 +12,15 @@ const normalizeFloor = (dto) => ({
 export async function getFloors() {
   try {
     const data = await api.get('/floor');
-    return Array.isArray(data) ? data.map(normalizeFloor) : [];
+    const list = Array.isArray(data) ? data.map(normalizeFloor) : [];
+    if (list.length > 0) return list;
+    // Fall back to mocks if API returns empty
+    return [
+      { floor_id: 1001, floor_code: 'HQ-F1', name: 'First Floor', building_id: 101, rows: 5, columns: 10 },
+      { floor_id: 1002, floor_code: 'HQ-F2', name: 'Second Floor', building_id: 101, rows: 5, columns: 10 },
+      { floor_id: 2001, floor_code: 'PA-G', name: 'Ground', building_id: 102, rows: 4, columns: 8 },
+      { floor_id: 2002, floor_code: 'PA-F1', name: 'First Floor', building_id: 102, rows: 4, columns: 8 },
+    ].map(normalizeFloor);
   } catch (e) {
     console.warn('Falling back to mock floors due to API error');
     // Mock floors aligned with mock buildings (101: HQ, 102: Plant A)

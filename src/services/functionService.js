@@ -38,3 +38,51 @@ export async function getFunctionTree(buildingId) {
   });
   return Array.from(byId.values());
 }
+
+// New: generic list for Function Management table
+export async function getFunctions() {
+  try {
+    const res = await api.get('/functions');
+    return Array.isArray(res) ? res : [];
+  } catch (e) {
+    // Mock fallback with required fields for the table
+    return [
+      { function_id: 101, function_code: 'OPS', name: 'Operations', company_name: 'HQ', parent_name: '-', parent_code: '-' },
+      { function_id: 102, function_code: 'FIN', name: 'Finance', company_name: 'HQ', parent_name: '-', parent_code: '-' },
+      { function_id: 103, function_code: 'HR',  name: 'Human Resources', company_name: 'HQ', parent_name: '-', parent_code: '-' },
+      { function_id: 104, function_code: 'OPS-CS', name: 'Customer Support', company_name: 'HQ', parent_name: 'Operations', parent_code: 'OPS' },
+    ];
+  }
+}
+
+export async function getFunctionById(functionId) {
+  try {
+    const res = await api.get(`/functions/${functionId}`);
+    return res || null;
+  } catch (e) {
+    // Mock lookup from fallback list
+    const list = await getFunctions();
+    return list.find(f => Number(f.function_id) === Number(functionId)) || null;
+  }
+}
+
+export async function patchFunction(functionId, payload) {
+  try {
+    const res = await api.patch(`/functions/${functionId}`, payload);
+    return res || payload;
+  } catch (e) {
+    // Mock optimistic update
+    const existing = await getFunctionById(functionId);
+    return { ...existing, ...payload };
+  }
+}
+
+export async function createFunction(payload) {
+  try {
+    const res = await api.post('/functions', payload);
+    return res;
+  } catch (e) {
+    // Mock create: assign a random id
+    return { function_id: Math.floor(Math.random() * 100000), ...payload };
+  }
+}

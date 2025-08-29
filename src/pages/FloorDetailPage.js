@@ -3,6 +3,7 @@ import '../styles/role-management.css';
 import { useAppContext } from '../context/AppContext';
 import { getBuildings } from '../services/buildingService';
 import { getFloorById, getFloors, createFloor, patchFloor } from '../services/floorService';
+import FormModal from '../components/ui/FormModal';
 
 const FloorDetailPage = () => {
   const { setActiveSection, floorFormMode, floorId, setFloorId } = useAppContext();
@@ -18,13 +19,25 @@ const FloorDetailPage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Rooms section removed for Edit Floor page
+
   // Local-only DnD state (no API integration): palette and cell assignments
   const [assignments, setAssignments] = useState({}); // key: `${row}-${col}` -> typeId
-  const [cellScale, setCellScale] = useState(1); // zoom for grid cells
+  const [cellTables, setCellTables] = useState({}); // key -> number of tables dropped
+  const [cellJobs, setCellJobs] = useState({}); // key -> array of job strings per table
+  const [jobModal, setJobModal] = useState({ open: false, key: null });
+  const [jobInputs, setJobInputs] = useState([]); // working copy for modal inputs
+  const [cellScale, setCellScale] = useState(1); // zoom for grid cells (fixed now)
   const displayTableTypes = useMemo(() => {
-    // build a 12-item palette consistent with LayoutManagementPage
+    // 12 icons: 1hor, 1ver, 2hor, 2ver, ..., 6hor, 6ver
     const base = [];
-    for (let i = 1; i <= 12; i++) base.push({ id: i, name: `Type ${i}` });
+    for (let i = 1; i <= 12; i++) {
+      const count = Math.ceil(i / 2);
+      const isHor = (i % 2 === 1);
+      const labelCount = count === 1 ? 'Single' : `${count}x`;
+      const labelOri = isHor ? 'Horizontal' : 'Vertical';
+      base.push({ id: i, name: `${labelCount} ${labelOri} Table${count > 1 ? 's' : ''}` });
+    }
     return base;
   }, []);
 
@@ -67,14 +80,28 @@ const FloorDetailPage = () => {
   }, [isCreate, isEdit]);
 
   useEffect(() => {
+    setActiveSection('floor-detail');
+    (async () => {
+      try {
+        const [bld, _floors] = await Promise.all([
+          getBuildings().catch(() => []),
+          getFloors().catch(() => [])
+        ]);
+        setBuildings(bld);
+        // Rooms fetch removed
+      } catch (e) {
+        setError(e?.message || 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         setLoading(true);
-        const bs = await getBuildings();
-        if (!mounted) return;
-        setBuildings(bs || []);
-
         if (isEdit && floorId != null) {
           try {
             const f = await getFloorById(floorId);
@@ -113,7 +140,6 @@ const FloorDetailPage = () => {
     return () => { mounted = false; };
   }, [isEdit, floorId]);
 
-
   // Small inline icons for reserved cells
   const StairIcon = ({ size = 20, color = '#334155' }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -129,11 +155,14 @@ const FloorDetailPage = () => {
 
   // Icon path for types (same as LayoutManagementPage)
   const iconSrcForType = (id) => {
-    const idx = displayTableTypes.findIndex((t) => String(t.id) === String(id));
-    const n = idx >= 0 ? idx + 1 : 1;
+    const num = Number(id) || 1;
+    const count = Math.ceil(num / 2);
+    const orientation = (num % 2 === 1) ? 'hor' : 'ver';
     const base = process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}` : '';
-    return `${base}/layoutIcons/icon${n}.jpg`;
+    return `${base}/layoutIcons/${count}${orientation}.jpg`;
   };
+
+  const tablesFromTypeId = (id) => Math.ceil((Number(id) || 1) / 2);
 
   // DnD handlers
   const onDragStartType = (e, typeId) => {
@@ -150,6 +179,15 @@ const FloorDetailPage = () => {
     const typeId = e.dataTransfer.getData('application/x-table-type');
     if (!typeId) return;
     setAssignments((prev) => ({ ...prev, [key]: typeId }));
+    const tables = tablesFromTypeId(typeId); // number of tables decided by icon type
+    setCellTables((prev) => ({ ...prev, [key]: tables }));
+    setCellJobs((prev) => {
+      const count = tables;
+      const existing = Array.isArray(prev[key]) ? prev[key] : [];
+      const next = existing.slice(0, count);
+      while (next.length < count) next.push('');
+      return { ...prev, [key]: next };
+    });
   };
   const clearCell = (key) => {
     setAssignments((prev) => {
@@ -157,12 +195,37 @@ const FloorDetailPage = () => {
       delete p[key];
       return p;
     });
+    setCellTables((prev) => { const p = { ...prev }; delete p[key]; return p; });
+    setCellJobs((prev) => { const p = { ...prev }; delete p[key]; return p; });
+  };
+
+  const openJobsForCell = (key) => {
+    const tables = Number(cellTables[key] || 0);
+    const existing = Array.isArray(cellJobs[key]) ? cellJobs[key] : [];
+    const inputs = existing.slice(0, tables);
+    while (inputs.length < tables) inputs.push('');
+    setJobInputs(inputs);
+    setJobModal({ open: true, key });
+  };
+
+  const closeJobsModal = () => {
+    setJobModal({ open: false, key: null });
+    setJobInputs([]);
+  };
+
+  const saveJobsModal = () => {
+    const k = jobModal.key;
+    if (!k) return;
+    setCellJobs((prev) => ({ ...prev, [k]: jobInputs.map((x) => String(x || '').trim()) }));
+    closeJobsModal();
   };
 
   const backToList = () => {
     setFloorId(null);
     setActiveSection('building-floors');
   };
+
+  // Rooms editing removed
 
   const onSave = async () => {
     setError('');
@@ -262,6 +325,8 @@ const FloorDetailPage = () => {
                   <div style={{ fontSize: 12, color: '#64748b' }}>Drag items from the palette into cells below. Grid adapts to building rows/columns.</div>
                 </div>
 
+                {/* Rooms Section removed */}
+
                 {/* Palette */}
                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', padding: '0.5rem 0.75rem', display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                   {displayTableTypes.map((t) => (
@@ -278,21 +343,6 @@ const FloorDetailPage = () => {
                       <img src={iconSrcForType(t.id)} alt={t.name} width={20} height={20} style={{ display: 'block' }} />
                     </div>
                   ))}
-                </div>
-
-                {/* Zoom control */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0 10px' }}>
-                  <label style={{ fontSize: 12, color: '#64748b' }}>Cell size</label>
-                  <input
-                    type="range"
-                    min="0.7"
-                    max="1.2"
-                    step="0.05"
-                    value={cellScale}
-                    onChange={(e) => setCellScale(Number(e.target.value))}
-                    style={{ width: 180 }}
-                  />
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{Math.round(cellScale * 100)}%</div>
                 </div>
 
                 {/* Dynamic Grid based on building rows/columns with reserved stairs/elevator cells */}
@@ -345,7 +395,10 @@ const FloorDetailPage = () => {
                                 </div>
                               ) : assignedTypeId ? (
                                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                                  <img src={iconSrcForType(assignedTypeId)} alt={typeName || 'Type'} width={Math.max(18, Math.round(24 * cellScale))} height={Math.max(18, Math.round(24 * cellScale))} style={{ display: 'block' }} />
+                                  <button onClick={() => openJobsForCell(key)} title="Link Jobs" aria-label="Link Jobs" style={{ border: 'none', background: 'transparent', padding: 0, margin: 0, cursor: 'pointer' }}>
+                                    <img src={iconSrcForType(assignedTypeId)} alt={typeName || 'Type'} width={Math.max(18, Math.round(24 * cellScale))} height={Math.max(18, Math.round(24 * cellScale))} style={{ display: 'block' }} />
+                                  </button>
+                                  <div style={{ fontSize: Math.max(9, Math.round(10 * cellScale)), color: '#64748b' }}>Tables: {Number(cellTables[key] ?? tablesFromTypeId(assignedTypeId))}</div>
                                   <button onClick={() => clearCell(key)} title="Remove" aria-label="Remove" style={{
                                     width: Math.max(18, Math.round(22 * cellScale)), height: Math.max(18, Math.round(22 * cellScale)), borderRadius: 6, border: '1px solid #e5e7eb', background: '#f8fafc', display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
                                   }}>
@@ -406,6 +459,40 @@ const FloorDetailPage = () => {
           </div>
         )}
       </div>
+
+      {/* Jobs modal for a selected cell */}
+      <FormModal
+        open={Boolean(jobModal.open)}
+        title={jobModal.key ? `Cell ${jobModal.key} — Link Jobs` : 'Link Jobs'}
+        onCancel={closeJobsModal}
+        footer={(
+          <>
+            <button type="button" className="danger-btn" onClick={() => { if (jobModal.key) { clearCell(jobModal.key); } closeJobsModal(); }}>Remove table from the room</button>
+            <div style={{ flex: 1 }} />
+            <button type="button" className="primary-btn" onClick={saveJobsModal}>Save</button>
+            <button type="button" className="secondary-btn" onClick={closeJobsModal}>Cancel</button>
+          </>
+        )}
+      >
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Place the cursor under Job and type the job name.</div>
+        {(jobInputs || []).length === 0 ? (
+          <div className="no-results">No tables in this cell yet. Drag a table into the cell to add.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 12 }}>
+            {jobInputs.map((val, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', alignItems: 'center', gap: 12 }}>
+                <div style={{ fontWeight: 600, color: '#334155' }}>Table {idx + 1}</div>
+                <input
+                  type="text"
+                  placeholder="JOB"
+                  value={val}
+                  onChange={(e) => setJobInputs((arr) => arr.map((v, i) => (i === idx ? e.target.value : v)))}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </FormModal>
     </div>
   );
 };

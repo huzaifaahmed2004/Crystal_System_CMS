@@ -5,6 +5,10 @@ import ProcessManagementPage from '../pages/ProcessManagementPage';
 import TaskManagementPage from '../pages/TaskManagementPage';
 import JobManagementPage from '../pages/JobManagementPage';
 import FunctionManagementPage from '../pages/FunctionManagementPage';
+import FunctionDetailPage from '../pages/FunctionDetailPage';
+import FunctionEditPage from '../pages/FunctionEditPage';
+import FunctionCreatePage from '../pages/FunctionCreatePage';
+import RoomManagementPage from '../pages/RoomManagementPage';
 import AIProcessesPage from '../pages/AIProcessesPage';
 import UserAccessControlPage from '../pages/UserAccessControlPage';
 import CompanyManagementPage from '../pages/CompanyManagementPage';
@@ -24,6 +28,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [buildingFormMode, setBuildingFormMode] = useState('view');
   const [floorId, setFloorId] = useState(null);
   const [floorFormMode, setFloorFormMode] = useState('view');
+  const [functionId, setFunctionId] = useState(null);
+  const [functionFormMode, setFunctionFormMode] = useState('view');
 
   // Persist active section across refreshes in this session
   useEffect(() => {
@@ -46,6 +52,12 @@ const Dashboard = ({ user, onLogout }) => {
         return <JobManagementPage />;
       case 'function-management':
         return <FunctionManagementPage />;
+      case 'function-detail':
+        return <FunctionDetailPage />;
+      case 'function-edit':
+        return <FunctionEditPage />;
+      case 'function-create':
+        return <FunctionCreatePage />;
       case 'company-overview':
         return <CompanyOverviewPage />;
       case 'companies':
@@ -60,6 +72,8 @@ const Dashboard = ({ user, onLogout }) => {
         return <FloorManagementPage />;
       case 'floor-detail':
         return <FloorDetailPage />;
+      case 'rooms':
+        return <RoomManagementPage />;
       // Backward compatibility for persisted sessions/older ids
       case 'company-management':
       case 'organization-management':
@@ -90,6 +104,8 @@ const Dashboard = ({ user, onLogout }) => {
         buildingFormMode, setBuildingFormMode,
         floorId, setFloorId,
         floorFormMode, setFloorFormMode,
+        functionId, setFunctionId,
+        functionFormMode, setFunctionFormMode,
       }}>
         <div className="page-router">
           {renderContent()}

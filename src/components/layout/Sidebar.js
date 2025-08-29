@@ -9,7 +9,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     if (['user-access', 'role-management'].includes(activeSection)) {
       setOpenUserAccess(true);
     }
-    if (['company-overview', 'companies', 'buildings', 'building-detail', 'building-floors', 'company-management', 'organization-management'].includes(activeSection)) {
+    if (['company-overview', 'companies', 'buildings', 'building-detail', 'building-floors', 'rooms', 'company-management', 'organization-management'].includes(activeSection)) {
       setOpenCompany(true);
     }
   }, [activeSection]);
@@ -114,7 +114,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
               ) : item.id === 'company' ? (
                 <>
                   <button
-                    className={`nav-button ${(['company-overview', 'companies', 'company-management', 'organization-management'].includes(activeSection)) ? 'active' : ''}`}
+                    className={`nav-button ${(['company-overview', 'companies', 'buildings', 'building-detail', 'building-floors', 'rooms', 'company-management', 'organization-management'].includes(activeSection)) ? 'active' : ''}`}
                     onClick={() => setOpenCompany((v) => !v)}
                     title={collapsed ? item.label : ''}
                   >
@@ -158,6 +158,14 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
                           onClick={() => setActiveSection('building-floors')}
                         >
                           Floors
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'rooms' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('rooms')}
+                        >
+                          Rooms
                         </button>
                       </li>
                     </ul>

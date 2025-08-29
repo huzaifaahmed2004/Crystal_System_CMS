@@ -26,7 +26,13 @@ const normalizeBuilding = (dto) => ({
 export async function getBuildings() {
   try {
     const data = await api.get('/building');
-    return Array.isArray(data) ? data.map(normalizeBuilding) : [];
+    const list = Array.isArray(data) ? data.map(normalizeBuilding) : [];
+    if (list.length > 0) return list;
+    // Fall back to mocks if API returns empty
+    return [
+      { building_id: 101, building_code: 'HQ-101', name: 'HQ', company_id: 1, country: 'USA', city: 'San Jose', rows: 5, columns: 10, floors: 3, stairs_cell: 5, elevator_cell: 15 },
+      { building_id: 102, building_code: 'PLANT-A', name: 'Plant A', company_id: 2, country: 'USA', city: 'Fremont', rows: 4, columns: 8, floors: 2, stairs_cell: 8, elevator_cell: 16 },
+    ];
   } catch (e) {
     console.warn('Falling back to mock buildings due to API error');
     return [

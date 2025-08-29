@@ -17,6 +17,11 @@ export const AppContext = createContext({
   setFloorId: () => {},
   floorFormMode: 'view', // 'create' | 'edit' | 'view'
   setFloorFormMode: () => {},
+  // function mgmt navigation
+  functionId: null,
+  setFunctionId: () => {},
+  functionFormMode: 'view', // 'create' | 'edit' | 'view'
+  setFunctionFormMode: () => {},
 });
 
 export const useAppContext = () => useContext(AppContext);
