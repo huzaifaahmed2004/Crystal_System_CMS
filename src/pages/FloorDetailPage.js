@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
 import { useAppContext } from '../context/AppContext';
 import { getBuildings } from '../services/buildingService';
-import { getFloorById, getFloors, createFloor, patchFloor } from '../services/floorService';
+import { getFloorById, getFloors, createFloor, patchFloor, getFloorWithRelations } from '../services/floorService';
+import { createTable, deleteTable } from '../services/tableService';
 import FormModal from '../components/ui/FormModal';
 
 const FloorDetailPage = () => {
@@ -25,6 +26,7 @@ const FloorDetailPage = () => {
   const [assignments, setAssignments] = useState({}); // key: `${row}-${col}` -> typeId
   const [cellTables, setCellTables] = useState({}); // key -> number of tables dropped
   const [cellJobs, setCellJobs] = useState({}); // key -> array of job strings per table
+  const [cellTableIds, setCellTableIds] = useState({}); // key -> created table id (for delete)
   const [jobModal, setJobModal] = useState({ open: false, key: null });
   const [jobInputs, setJobInputs] = useState([]); // working copy for modal inputs
   const [cellScale, setCellScale] = useState(1); // zoom for grid cells (fixed now)
@@ -62,22 +64,35 @@ const FloorDetailPage = () => {
     return list;
   }, [gridRows, gridCols, selectedBuilding, form]);
 
-  const functionNames = useMemo(() => {
-    if (!assignments) return [];
-    const items = [];
-    for (const [key, typeId] of Object.entries(assignments)) {
-      if (!typeId) continue;
-      const type = displayTableTypes.find((t) => String(t.id) === String(typeId));
-      if (type) items.push(`${type.name} • ${key}`);
-    }
-    return items.sort();
-  }, [assignments, displayTableTypes]);
+  // Keep Functions/Subfunctions panel empty for now (no backend functions)
+  const functionNames = useMemo(() => [], []);
 
   const title = useMemo(() => {
     if (isCreate) return 'Create Floor';
     if (isEdit) return 'Edit Floor';
     return 'Floor Details';
   }, [isCreate, isEdit]);
+
+  // Rooms for this floor (to map row/col -> room_id)
+  const [floorRooms, setFloorRooms] = useState([]);
+  const roomIdByCell = useMemo(() => {
+    const m = new Map();
+    (floorRooms || []).forEach((r) => {
+      const key = `${r.cell_row}-${r.cell_column}`;
+      m.set(key, r.room_id ?? r.id);
+    });
+    return m;
+  }, [floorRooms]);
+
+  // Map key -> full room (to inspect cellType)
+  const roomByCell = useMemo(() => {
+    const m = new Map();
+    (floorRooms || []).forEach((r) => {
+      const key = `${r.cell_row}-${r.cell_column}`;
+      m.set(key, r);
+    });
+    return m;
+  }, [floorRooms]);
 
   useEffect(() => {
     setActiveSection('floor-detail');
@@ -140,6 +155,52 @@ const FloorDetailPage = () => {
     return () => { mounted = false; };
   }, [isEdit, floorId]);
 
+  // Load floor with relations on edit and pre-populate the layout state
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!(isEdit && floorId != null)) { setFloorRooms([]); return; }
+      try {
+        const data = await getFloorWithRelations(floorId);
+        if (!mounted || !data) return;
+
+        // Map rooms to our expected shape { room_id, cell_row, cell_column }
+        const rooms = Array.isArray(data.rooms) ? data.rooms.map((r) => ({
+          room_id: r.room_id ?? r.id,
+          cell_row: r.cell_row ?? r.row,
+          cell_column: r.cell_column ?? r.column,
+          cellType: r.cellType ?? r.cell_type ?? '',
+          tables: Array.isArray(r.tables) ? r.tables : [],
+        })) : [];
+        setFloorRooms(rooms);
+
+        // Pre-populate grid state from tables
+        const nextAssignments = {};
+        const nextCellTables = {};
+        const nextCellTableIds = {};
+        rooms.forEach((r) => {
+          const key = `${r.cell_row}-${r.cell_column}`;
+          const t = (r.tables || [])[0]; // assume one table per room cell
+          if (!t) return;
+          const capacity = Number(t.capacity) || 0;
+          const isHor = String(t.orientation || '').toUpperCase() === 'HORIZONTAL';
+          const typeId = isHor ? (capacity * 2 - 1) : (capacity * 2);
+          nextAssignments[key] = String(typeId);
+          nextCellTables[key] = capacity;
+          nextCellTableIds[key] = t.table_id ?? t.id;
+        });
+        setAssignments(nextAssignments);
+        setCellTables(nextCellTables);
+        setCellTableIds(nextCellTableIds);
+      } catch (_) {
+        if (mounted) {
+          setFloorRooms([]);
+        }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [isEdit, floorId]);
+
   // Small inline icons for reserved cells
   const StairIcon = ({ size = 20, color = '#334155' }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -175,9 +236,21 @@ const FloorDetailPage = () => {
       e.dataTransfer.dropEffect = 'copy';
     }
   };
-  const onDropCell = (e, key) => {
+  const onDropCell = async (e, key) => {
     const typeId = e.dataTransfer.getData('application/x-table-type');
     if (!typeId) return;
+    // Rule 1: Do not allow drop on occupied cell. User must delete first.
+    if (cellTableIds[key] != null) {
+      setError('Cell already has a table. Delete it first to replace.');
+      return;
+    }
+    // Rule 2: Lock ELEVATOR/STAIRS cells
+    const room = roomByCell.get(key);
+    const ct = String(room?.cellType || '').toUpperCase();
+    if (ct === 'ELEVATOR' || ct === 'STAIRS') {
+      setError(`Cannot place table on a locked ${ct} cell.`);
+      return;
+    }
     setAssignments((prev) => ({ ...prev, [key]: typeId }));
     const tables = tablesFromTypeId(typeId); // number of tables decided by icon type
     setCellTables((prev) => ({ ...prev, [key]: tables }));
@@ -188,8 +261,44 @@ const FloorDetailPage = () => {
       while (next.length < count) next.push('');
       return { ...prev, [key]: next };
     });
+
+    // Immediately call API to create a table for this room
+    try {
+      const [row, col] = key.split('-').map((n) => Number(n));
+      const roomId = roomIdByCell.get(key);
+      if (!roomId) {
+        setError('No room found for this cell');
+        return;
+      }
+      const capacity = tablesFromTypeId(typeId);
+      const isHor = (Number(typeId) % 2 === 1);
+      const orientation = isHor ? 'HORIZONTAL' : 'VERTICAL';
+      const letter = isHor ? 'H' : 'V';
+      const tableCode = `T-${capacity}-${letter}`;
+      const name = `Table-${capacity} Person`;
+      const created = await createTable({ tableCode, name, room_id: roomId, capacity, orientation });
+      const createdId = created?.id ?? created?.table_id;
+      if (createdId != null) {
+        setCellTableIds((prev) => ({ ...prev, [key]: createdId }));
+      }
+    } catch (err) {
+      // Revert UI on failure
+      setAssignments((prev) => { const p = { ...prev }; delete p[key]; return p; });
+      setCellTables((prev) => { const p = { ...prev }; delete p[key]; return p; });
+      setCellJobs((prev) => { const p = { ...prev }; delete p[key]; return p; });
+      setError('Failed to create table for this room');
+    }
   };
-  const clearCell = (key) => {
+  const clearCell = async (key) => {
+    // Call delete API if a table exists for this cell
+    try {
+      const tableId = cellTableIds[key];
+      if (tableId != null) {
+        await deleteTable(tableId);
+      }
+    } catch (_) {
+      // ignore errors on delete, proceed to clear UI
+    }
     setAssignments((prev) => {
       const p = { ...prev };
       delete p[key];
@@ -197,6 +306,7 @@ const FloorDetailPage = () => {
     });
     setCellTables((prev) => { const p = { ...prev }; delete p[key]; return p; });
     setCellJobs((prev) => { const p = { ...prev }; delete p[key]; return p; });
+    setCellTableIds((prev) => { const p = { ...prev }; delete p[key]; return p; });
   };
 
   const openJobsForCell = (key) => {
@@ -236,16 +346,12 @@ const FloorDetailPage = () => {
     if (!code) { setError('Floor Code is required'); return; }
     if (!name) { setError('Floor Name is required'); return; }
 
-    const b = buildingMap[bId];
-    const rows = Number(b?.rows) || 0;
-    const columns = Number(b?.columns) || 0;
-
     try {
       setSaving(true);
       if (isCreate) {
-        await createFloor({ building_id: bId, floor_code: code, name, rows, columns });
+        await createFloor({ building_id: bId, floorCode: code, name });
       } else if (isEdit && floorId != null) {
-        await patchFloor(floorId, { building_id: bId, floor_code: code, name, rows, columns });
+        await patchFloor(floorId, { floorCode: code, name });
       }
       backToList();
     } catch (e) {
@@ -279,7 +385,7 @@ const FloorDetailPage = () => {
               <select
                 value={form.building_id}
                 onChange={(e) => setForm(prev => ({ ...prev, building_id: e.target.value }))}
-                disabled={false}
+                disabled={isEdit}
               >
                 <option value="">Select a building</option>
                 {(buildings || []).map((b) => (
@@ -365,8 +471,11 @@ const FloorDetailPage = () => {
                           const col = cIdx + 1;
                           const key = `${row}-${col}`;
                           const linear = (row - 1) * gridCols + col; // 1-based sequential cell no
-                          const isStairs = stairsCell != null && Number(stairsCell) === linear;
-                          const isElevator = elevatorCell != null && Number(elevatorCell) === linear;
+                          // Prefer room.cellType when available, fallback to building-level reserved cells
+                          const room = roomByCell.get(key);
+                          const ct = String(room?.cellType || '').toUpperCase();
+                          const isStairs = ct ? ct === 'STAIRS' : (stairsCell != null && Number(stairsCell) === linear);
+                          const isElevator = ct ? ct === 'ELEVATOR' : (elevatorCell != null && Number(elevatorCell) === linear);
                           const assignedTypeId = assignments[key];
                           const typeName = assignedTypeId ? displayTableTypes.find((t) => String(t.id) === String(assignedTypeId))?.name : null;
                           return (

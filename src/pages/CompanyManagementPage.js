@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import '../styles/role-management.css';
+import '../styles/company-management.css';
 import Modal from '../components/ui/Modal';
 import FormModal from '../components/ui/FormModal';
 import { getCompanies, getCompanyById, createCompany, patchCompany, deleteCompany, deleteCompaniesBulk } from '../services/companyService';

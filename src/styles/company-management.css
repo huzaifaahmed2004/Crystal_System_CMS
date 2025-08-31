@@ -1,0 +1,19 @@
+@import './role-management.css';
+
+/* Company page specific table layout */
+.company-page .roles-table-header,
+.company-page .roles-table-row {
+  grid-template-columns: 48px 1.2fr 1.8fr 1.4fr 1.2fr 1.2fr 220px;
+}
+
+/* Prevent date columns from wrapping on company page */
+.company-page .roles-table-header .created-at,
+.company-page .roles-table-header .updated-at,
+.company-page .roles-table-row .created-at,
+.company-page .roles-table-row .updated-at {
+  white-space: nowrap;
+}
+
+/* Two-line datetime display restricted to company page */
+.company-page .roles-table .dt-wrap { display: inline-flex; flex-direction: column; line-height: 1.15; }
+.company-page .roles-table .dt-wrap .subtext { color: #6b7280; font-size: 0.9em; }

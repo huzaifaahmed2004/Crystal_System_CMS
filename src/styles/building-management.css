@@ -1,0 +1,19 @@
+@import './role-management.css';
+
+/* Building page specific table layout */
+.building-page .roles-table-header,
+.building-page .roles-table-row {
+  grid-template-columns: 48px 1.5fr 1fr 1fr 1fr 140px 140px 220px;
+}
+
+.building-page .roles-table-header .created-at,
+.building-page .roles-table-header .updated-at,
+.building-page .roles-table-row .created-at,
+.building-page .roles-table-row .updated-at {
+  white-space: nowrap;
+}
+
+/* Two-line datetime display restricted to building page */
+.building-page .roles-table .datetime { display: inline-flex; flex-direction: column; line-height: 1.15; }
+.building-page .roles-table .datetime .date { display: block; }
+.building-page .roles-table .datetime .time { display: block; color: #6b7280; font-size: 0.9em; }

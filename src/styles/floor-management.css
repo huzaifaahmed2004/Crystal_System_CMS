@@ -1,0 +1,20 @@
+@import './role-management.css';
+
+/* Floor page specific table layout */
+.floor-page .roles-table-header,
+.floor-page .roles-table-row {
+  /* Columns: checkbox | Code | Name | Building | Updated At | Created At | Actions */
+  grid-template-columns: 48px 1fr 1.2fr 1.2fr 140px 140px 220px;
+}
+
+.floor-page .roles-table-header .created-at,
+.floor-page .roles-table-header .updated-at,
+.floor-page .roles-table-row .created-at,
+.floor-page .roles-table-row .updated-at {
+  white-space: nowrap;
+}
+
+/* Two-line datetime display restricted to floor page */
+.floor-page .roles-table .datetime { display: inline-flex; flex-direction: column; line-height: 1.15; }
+.floor-page .roles-table .datetime .date { display: block; }
+.floor-page .roles-table .datetime .time { display: block; color: #6b7280; font-size: 0.9em; }

@@ -46,13 +46,24 @@ export async function getFloorById(id) {
   return res ? normalizeFloor(res) : null;
 }
 
+// Fetch floor with building and rooms (with tables)
+export async function getFloorWithRelations(id) {
+  try {
+    const res = await api.get(`/floor/${id}/with-relations`);
+    return res || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function createFloor(payload) {
   const body = {
     building_id: Number(payload.building_id),
-    floor_code: payload.floor_code !== undefined ? String(payload.floor_code).trim() : undefined,
+    // API expects camelCase floorCode per latest requirement
+    floorCode: payload.floorCode !== undefined
+      ? String(payload.floorCode).trim()
+      : (payload.floor_code !== undefined ? String(payload.floor_code).trim() : undefined),
     name: payload.name !== undefined ? String(payload.name).trim() : undefined,
-    rows: Number(payload.rows) || 0,
-    columns: Number(payload.columns) || 0,
   };
   try {
     const res = await api.post('/floor', body);
@@ -64,11 +75,10 @@ export async function createFloor(payload) {
 
 export async function patchFloor(id, payload) {
   const body = {};
-  if (payload.floor_code !== undefined) body.floor_code = String(payload.floor_code).trim();
+  if (payload.floorCode !== undefined) body.floorCode = String(payload.floorCode).trim();
+  else if (payload.floor_code !== undefined) body.floorCode = String(payload.floor_code).trim();
   if (payload.name !== undefined) body.name = String(payload.name).trim();
   if (payload.building_id !== undefined) body.building_id = Number(payload.building_id);
-  if (payload.rows !== undefined) body.rows = Number(payload.rows) || 0;
-  if (payload.columns !== undefined) body.columns = Number(payload.columns) || 0;
   try {
     const res = await api.patch(`/floor/${id}`, body);
     return res ? normalizeFloor(res) : normalizeFloor({ id, ...body });

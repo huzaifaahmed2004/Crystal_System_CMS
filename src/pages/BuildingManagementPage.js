@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import '../styles/role-management.css';
+import '../styles/building-management.css';
 import { getBuildings, deleteBuilding, deleteBuildingsBulk } from '../services/buildingService';
 import { useAppContext } from '../context/AppContext';
 
@@ -111,19 +111,19 @@ const BuildingManagementPage = () => {
     }
   };
 
-  const formatTs = (v) => {
-    if (!v) return '-';
+  const splitDateTime = (v) => {
+    if (!v) return { date: '-', time: '' };
     try {
       const d = new Date(v);
-      if (isNaN(d.getTime())) return String(v);
-      return d.toLocaleString();
+      if (isNaN(d.getTime())) return { date: String(v), time: '' };
+      return { date: d.toLocaleDateString(), time: d.toLocaleTimeString() };
     } catch {
-      return String(v);
+      return { date: String(v), time: '' };
     }
   };
 
   return (
-    <div className="page-container">
+    <div className="page-container building-page">
       <div className="page-header">
         <div className="header-content">
           <div>
@@ -155,7 +155,7 @@ const BuildingManagementPage = () => {
           <div className="no-results">Loading buildings...</div>
         ) : (
           <div className="roles-table">
-            <div className="roles-table-header" style={{ gridTemplateColumns: '48px 1.5fr 1fr 1fr 1fr 140px 140px 220px' }}>
+            <div className="roles-table-header">
               <div className="cell checkbox">
                 <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
               </div>
@@ -163,8 +163,8 @@ const BuildingManagementPage = () => {
               <div className="cell">Code</div>
               <div className="cell">Country</div>
               <div className="cell">City</div>
-              <div className="cell">Updated At</div>
-              <div className="cell">Created At</div>
+              <div className="cell updated-at">Updated At</div>
+              <div className="cell created-at">Created At</div>
               <div className="cell actions">Actions</div>
             </div>
 
@@ -172,7 +172,7 @@ const BuildingManagementPage = () => {
               <div className="no-results">No buildings found.</div>
             ) : (
               buildings.map((b) => (
-                <div className={`roles-table-row ${selectedIds.has(b.building_id) ? 'selected' : ''}`} key={b.building_id} style={{ gridTemplateColumns: '48px 1.5fr 1fr 1fr 1fr 140px 140px 220px' }}>
+                <div className={`roles-table-row ${selectedIds.has(b.building_id) ? 'selected' : ''}`} key={b.building_id}>
                   <div className="cell checkbox">
                     <input
                       type="checkbox"
@@ -184,8 +184,16 @@ const BuildingManagementPage = () => {
                   <div className="cell">{b.building_code || '-'}</div>
                   <div className="cell">{b.country}</div>
                   <div className="cell">{b.city}</div>
-                  <div className="cell">{formatTs(b.updated_at)}</div>
-                  <div className="cell">{formatTs(b.created_at)}</div>
+                  <div className="cell updated-at">
+                    {(() => { const s = splitDateTime(b.updated_at); return (
+                      <div className="datetime"><span className="date">{s.date}</span><span className="time">{s.time}</span></div>
+                    ); })()}
+                  </div>
+                  <div className="cell created-at">
+                    {(() => { const s = splitDateTime(b.created_at); return (
+                      <div className="datetime"><span className="date">{s.date}</span><span className="time">{s.time}</span></div>
+                    ); })()}
+                  </div>
                   <div className="cell actions">
                     <button className="secondary-btn sm" onClick={() => goToDetail('view', b.building_id)}>View</button>
                     <button className="primary-btn sm" onClick={() => goToEdit(b.building_id)}>Edit</button>

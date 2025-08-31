@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import '../styles/role-management.css';
+import '../styles/floor-management.css';
 import { getBuildings } from '../services/buildingService';
 import { getFloors, deleteFloor, deleteFloorsBulk } from '../services/floorService';
 import Modal from '../components/ui/Modal';
@@ -58,14 +58,14 @@ const FloorManagementPage = () => {
     }
   };
 
-  const formatTs = (v) => {
-    if (!v) return '-';
+  const splitDateTime = (v) => {
+    if (!v) return { date: '-', time: '' };
     try {
       const d = new Date(v);
-      if (isNaN(d.getTime())) return String(v);
-      return d.toLocaleString();
+      if (isNaN(d.getTime())) return { date: String(v), time: '' };
+      return { date: d.toLocaleDateString(), time: d.toLocaleTimeString() };
     } catch {
-      return String(v);
+      return { date: String(v), time: '' };
     }
   };
 
@@ -148,7 +148,7 @@ const FloorManagementPage = () => {
   };
 
   return (
-    <div className="page-container">
+    <div className="page-container floor-page">
       <div className="page-header">
         <div className="header-content">
           <div>
@@ -180,17 +180,15 @@ const FloorManagementPage = () => {
           <div className="no-results">Loading floors...</div>
         ) : (
           <div className="roles-table">
-            <div className="roles-table-header" style={{ gridTemplateColumns: '48px 1fr 1.2fr 1.2fr 1fr 1fr 140px 140px 220px' }}>
+            <div className="roles-table-header">
               <div className="cell checkbox">
                 <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
               </div>
               <div className="cell">Code</div>
               <div className="cell">Name</div>
               <div className="cell">Building</div>
-              <div className="cell">Rows (read-only)</div>
-              <div className="cell">Columns (read-only)</div>
-              <div className="cell">Updated At</div>
-              <div className="cell">Created At</div>
+              <div className="cell updated-at">Updated At</div>
+              <div className="cell created-at">Created At</div>
               <div className="cell actions">Actions</div>
             </div>
 
@@ -198,17 +196,23 @@ const FloorManagementPage = () => {
               <div className="no-results">No floors found.</div>
             ) : (
               floors.map((f) => (
-                <div key={f.floor_id} className={`roles-table-row ${selectedIds.has(f.floor_id) ? 'selected' : ''}`} style={{ gridTemplateColumns: '48px 1fr 1.2fr 1.2fr 1fr 1fr 140px 140px 220px' }}>
+                <div key={f.floor_id} className={`roles-table-row ${selectedIds.has(f.floor_id) ? 'selected' : ''}`}>
                   <div className="cell checkbox">
                     <input type="checkbox" checked={selectedIds.has(f.floor_id)} onChange={() => toggleSelect(f.floor_id)} />
                   </div>
                   <div className="cell">{f.floor_code}</div>
                   <div className="cell">{f.name}</div>
                   <div className="cell">{buildingMap[Number(f.building_id)]?.name || `Building ${f.building_id}`}</div>
-                  <div className="cell">{buildingMap[Number(f.building_id)]?.rows ?? f.rows}</div>
-                  <div className="cell">{buildingMap[Number(f.building_id)]?.columns ?? f.columns}</div>
-                  <div className="cell">{formatTs(f.updated_at)}</div>
-                  <div className="cell">{formatTs(f.created_at)}</div>
+                  <div className="cell updated-at">
+                    {(() => { const s = splitDateTime(f.updated_at); return (
+                      <div className="datetime"><span className="date">{s.date}</span><span className="time">{s.time}</span></div>
+                    ); })()}
+                  </div>
+                  <div className="cell created-at">
+                    {(() => { const s = splitDateTime(f.created_at); return (
+                      <div className="datetime"><span className="date">{s.date}</span><span className="time">{s.time}</span></div>
+                    ); })()}
+                  </div>
                   <div className="cell actions">
                     <button className="secondary-btn sm" onClick={() => goToEdit(f.floor_id)}>Edit</button>
                     <button className="danger-btn sm" onClick={() => removeSingle(f.floor_id)}>Delete</button>
