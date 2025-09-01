@@ -1,8 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/job-management.css';
+import '../styles/role-management.css';
+import { getJobs, deleteJob } from '../services/jobService';
+import { getFunctions } from '../services/functionService';
+import { getCompaniesLite } from '../services/layoutService';
+import FormModal from '../components/ui/FormModal';
 
 const JobManagementPage = () => {
-  // Dummy data for jobs, functions, tasks, and processes
+  // API-backed list state
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [functionsMap, setFunctionsMap] = useState({});
+  const [companiesMap, setCompaniesMap] = useState({});
+  const [deletingId, setDeletingId] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [targetId, setTargetId] = useState(null);
+  const [targetName, setTargetName] = useState('');
+
+  // Keep existing demo state (unused in table) to avoid large refactor below
   const [jobs] = useState([
     {
       id: 1,
@@ -157,13 +173,71 @@ const JobManagementPage = () => {
       const matchesSearch = job.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            job.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            job.owner.toLowerCase().includes(searchTerm.toLowerCase());
-      
       const matchesFunction = functionFilter === 'All' || job.assignedFunction === functionFilter;
       const matchesPriority = priorityFilter === 'All' || job.priority === priorityFilter;
-
       return matchesSearch && matchesFunction && matchesPriority;
     });
   }, [jobs, searchTerm, functionFilter, priorityFilter]);
+
+  // Fetch jobs + supporting maps
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const [jobsRes, funcsRes, compsRes] = await Promise.all([
+          getJobs(),
+          getFunctions().catch(() => []),
+          getCompaniesLite().catch(() => []),
+        ]);
+        setList(Array.isArray(jobsRes) ? jobsRes : []);
+        const fMap = {};
+        (funcsRes || []).forEach(f => { fMap[String(f.function_id)] = f.name; });
+        setFunctionsMap(fMap);
+        const cMap = {};
+        (compsRes || []).forEach(c => { cMap[String(c.company_id || c.id)] = c.name; });
+        setCompaniesMap(cMap);
+      } catch (e) {
+        setError(e?.message || 'Failed to load jobs');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const refresh = async () => {
+    try {
+      const jobsRes = await getJobs();
+      setList(Array.isArray(jobsRes) ? jobsRes : []);
+    } catch (e) {
+      setError(e?.message || 'Failed to load jobs');
+    }
+  };
+
+  const requestDelete = (id, name) => {
+    setTargetId(id);
+    setTargetName(name || 'this job');
+    setConfirmOpen(true);
+  };
+
+  const onDeleteConfirmed = async () => {
+    const id = targetId;
+    if (!id) { setConfirmOpen(false); return; }
+    try {
+      setDeletingId(id);
+      setConfirmOpen(false);
+      // Optimistic update
+      setList(prev => prev.filter(j => String(j.job_id) !== String(id)));
+      await deleteJob(id);
+      await refresh();
+    } catch (e) {
+      setError(e?.message || 'Failed to delete job');
+      await refresh();
+    } finally {
+      setDeletingId(null);
+      setTargetId(null);
+      setTargetName('');
+    }
+  };
 
 
 
@@ -321,198 +395,72 @@ const JobManagementPage = () => {
     );
   }
 
-  // Job List View
+  // Job List View (API-backed table)
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="header-content">
           <div>
             <h2 className="page-title">Job Management</h2>
-            <p className="page-subtitle">Manage job roles & responsibilities</p>
+            <p className="page-subtitle">Browse jobs. Use actions to view or edit.</p>
           </div>
-          <button className="create-btn" onClick={handleCreateJob}>+ Create New Job</button>
         </div>
       </div>
-      
+
       <div className="page-content">
-        {/* Search and Filters */}
-        <div className="filters-section">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Search jobs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          
-          <div className="filters">
-
-
-            <select 
-              value={functionFilter} 
-              onChange={(e) => setFunctionFilter(e.target.value)}
-              className="filter-select"
-            >
-              <option value="All">All Functions</option>
-              {functionsList.map(func => (
-                <option key={func} value={func}>{func}</option>
-              ))}
-            </select>
-
-            <select 
-              value={priorityFilter} 
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="filter-select"
-            >
-              <option value="All">All Priorities</option>
-              {priorities.map(priority => (
-                <option key={priority} value={priority}>{priority}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Job List */}
-        <div className="job-list">
-          {filteredJobs.length === 0 ? (
-            <div className="no-results">
-              <p>No jobs found matching your criteria.</p>
+        {error && <div className="error-banner">{error}</div>}
+        {loading ? (
+          <div className="no-results">Loading jobs...</div>
+        ) : (
+          <div className="roles-table">
+            <div className="roles-table-header" style={{ gridTemplateColumns: '1fr 1.3fr 1.2fr 1.2fr 1.1fr 1.1fr 180px' }}>
+              <div className="cell">Job Code</div>
+              <div className="cell">Job Name</div>
+              <div className="cell">Function</div>
+              <div className="cell">Company</div>
+              <div className="cell">Created At</div>
+              <div className="cell">Updated At</div>
+              <div className="cell actions" style={{ textAlign: 'right' }}>Actions</div>
             </div>
-          ) : (
-            filteredJobs.map(job => (
-              <div 
-                key={job.id} 
-                className="job-card"
-                onClick={() => handleJobClick(job)}
-              >
-                <div className="job-header">
-                  <h3 className="job-name">{job.name}</h3>
-                  <div className="job-badges">
 
-                    <span 
-                      className="priority-badge"
-                      style={{ color: getPriorityColor(job.priority) }}
-                    >
-                      {job.priority}
-                    </span>
+            {(!list || list.length === 0) ? (
+              <div className="no-results">No jobs found</div>
+            ) : (
+              list.map(j => (
+                <div key={j.job_id} className="roles-table-row" style={{ gridTemplateColumns: '1fr 1.3fr 1.2fr 1.2fr 1.1fr 1.1fr 180px' }}>
+                  <div className="cell">{j.jobCode || '-'}</div>
+                  <div className="cell">{j.name || '-'}</div>
+                  <div className="cell">{functionsMap[String(j.function_id)] || '-'}</div>
+                  <div className="cell">{companiesMap[String(j.company_id)] || '-'}</div>
+                  <div className="cell">{j.createdAt ? new Date(j.createdAt).toLocaleString() : '-'}</div>
+                  <div className="cell">{j.updatedAt ? new Date(j.updatedAt).toLocaleString() : '-'}</div>
+                  <div className="cell actions" style={{ textAlign: 'right' }}>
+                    <button className="secondary-btn sm" onClick={() => console.log('view job', j.job_id)} style={{ marginRight: 6 }}>View</button>
+                    <button className="secondary-btn sm" onClick={() => console.log('edit job', j.job_id)} style={{ marginRight: 6 }}>Edit</button>
+                    <button className="danger-btn sm" disabled={deletingId === j.job_id} onClick={() => requestDelete(j.job_id, j.name)}>
+                      {deletingId === j.job_id ? 'Deleting...' : 'Delete'}
+                    </button>
                   </div>
                 </div>
-                
-                <p className="job-description">{job.description}</p>
-                
-                <div className="job-stats">
-                  <div className="stat-item">
-                    <span className="stat-value">{job.linkedTasks.length}</span>
-                    <span className="stat-label">Tasks</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-value">{job.linkedProcesses.length}</span>
-                    <span className="stat-label">Processes</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-value">{job.completionRate}%</span>
-                    <span className="stat-label">Success Rate</span>
-                  </div>
-                </div>
-                
-                <div className="job-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">Assigned Function:</span>
-                    <span className="meta-value function-link">{job.assignedFunction}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Owner:</span>
-                    <span className="meta-value">{job.owner}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Hours:</span>
-                    <span className="meta-value">{job.actualHours}h / {job.estimatedHours}h</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Last Modified:</span>
-                    <span className="meta-value">{job.lastModified}</span>
-                  </div>
-                </div>
-              </div>
-            ))
+              ))
+            )}
+          </div>
+        )}
+
+        <FormModal
+          open={confirmOpen}
+          title="Delete Job"
+          onCancel={() => { setConfirmOpen(false); setTargetId(null); setTargetName(''); }}
+          footer={(
+            <>
+              <button className="modal-btn" type="button" onClick={() => { setConfirmOpen(false); }}>Cancel</button>
+              <button className="danger-btn" type="button" onClick={onDeleteConfirmed} style={{ marginLeft: 8 }}>Delete</button>
+            </>
           )}
-        </div>
+        >
+          <p>Are you sure you want to delete <strong>{targetName || 'this job'}</strong>? This action cannot be undone.</p>
+        </FormModal>
       </div>
-
-      {/* Create/Edit Job Modal */}
-      {showCreateModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{editingJob ? 'Edit Job' : 'Create New Job'}</h3>
-              <button className="close-btn" onClick={handleCloseModal}>×</button>
-            </div>
-            
-            <div className="modal-body">
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Job Name</label>
-                  <input type="text" placeholder="Enter job name" />
-                </div>
-                
-                <div className="form-group">
-                  <label>Priority</label>
-                  <select>
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
-                </div>
-                
-                <div className="form-group full-width">
-                  <label>Job Description</label>
-                  <textarea placeholder="Enter detailed job description and responsibilities"></textarea>
-                </div>
-                
-                <div className="form-group">
-                  <label>Assign to Function</label>
-                  <select>
-                    <option value="">Select Function</option>
-                    {functions.map(func => (
-                      <option key={func} value={func}>{func}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="form-group">
-                  <label>Owner</label>
-                  <input type="text" placeholder="Job owner/manager" />
-                </div>
-                
-                <div className="form-group">
-                  <label>Estimated Hours</label>
-                  <input type="number" step="0.5" placeholder="8.0" />
-                </div>
-                
-                <div className="form-group">
-                  <label>Status</label>
-                  <select>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="Draft">Draft</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            
-            <div className="modal-footer">
-              <button className="action-btn secondary" onClick={handleCloseModal}>
-                Cancel
-              </button>
-              <button className="action-btn primary">
-                {editingJob ? 'Update Job' : 'Create Job'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

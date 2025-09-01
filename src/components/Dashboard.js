@@ -22,7 +22,14 @@ import FloorDetailPage from '../pages/FloorDetailPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
-  const [activeSection, setActiveSection] = useState(() => sessionStorage.getItem('activeSection') || 'dashboard');
+  const [activeSection, setActiveSection] = useState(() => {
+    // Prefer URL hash for deep link/back-forward support, fallback to sessionStorage, then default
+    const hash = (typeof window !== 'undefined' && window.location && window.location.hash)
+      ? window.location.hash.replace(/^#\/?/, '')
+      : '';
+    if (hash) return hash;
+    return sessionStorage.getItem('activeSection') || 'dashboard';
+  });
   const [layoutCompanyId, setLayoutCompanyId] = useState(null);
   const [buildingId, setBuildingId] = useState(null);
   const [buildingFormMode, setBuildingFormMode] = useState('view');
@@ -38,7 +45,26 @@ const Dashboard = ({ user, onLogout }) => {
     } catch (_) {
       // ignore storage errors
     }
+    // Keep URL hash in sync so link changes reflect active page
+    if (typeof window !== 'undefined') {
+      const nextHash = `#/${activeSection}`;
+      if (window.location.hash !== nextHash) {
+        // Use replaceState for initial load-like changes to avoid cluttering history when toggling within app
+        window.history.replaceState(null, '', nextHash);
+      }
+    }
   }, [activeSection]);
+
+  // Handle back/forward navigation via hashchange
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+      setActiveSection(prev => (prev !== hash ? hash : prev));
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   const renderContent = () => {
     switch (activeSection) {
