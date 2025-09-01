@@ -13,6 +13,8 @@ const FloorDetailPage = () => {
   const isEdit = floorFormMode === 'edit';
 
   const [buildings, setBuildings] = useState([]);
+  const [allFloors, setAllFloors] = useState([]);
+  const [lastAuto, setLastAuto] = useState({ building_id: null, code: '', name: '' });
   const buildingMap = useMemo(() => Object.fromEntries((buildings || []).map(b => [Number(b.building_id), b])), [buildings]);
 
   const [form, setForm] = useState({ building_id: '', floor_code: '', name: '' });
@@ -45,6 +47,46 @@ const FloorDetailPage = () => {
     }
     return base;
   }, []);
+
+  // Auto-fill floor name and code on building selection in Create mode
+  useEffect(() => {
+    if (!isCreate) return;
+    const bIdNum = Number(form.building_id);
+    if (!Number.isFinite(bIdNum) || bIdNum <= 0) return;
+    const b = buildingMap[bIdNum];
+    if (!b) return;
+
+    const re = /^Fl(\d+)/i;
+    const floorsForBuilding = (allFloors || []).filter((f) => Number(f.building_id) === bIdNum);
+    const lastIdx = floorsForBuilding.reduce((max, f) => {
+      const m = re.exec(String(f.floor_code || f.floorCode || ''));
+      if (!m) return max;
+      const n = Number(m[1]);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, -1);
+    const nextIdx = lastIdx + 1; // 0 if none -> Ground
+
+    const ordinals = ['Ground', 'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth', 'Eleventh', 'Twelfth', 'Thirteenth', 'Fourteenth', 'Fifteenth', 'Sixteenth', 'Seventeenth', 'Eighteenth', 'Nineteenth', 'Twentieth'];
+    const nameOrdinal = nextIdx === 0 ? 'Ground' : (ordinals[nextIdx] || `${nextIdx}th`);
+    const autoName = `${nameOrdinal} Floor`;
+
+    const bname = String(b.name || '').trim();
+    const three = bname.slice(0, 3);
+    const threeFormatted = three ? (three[0].toUpperCase() + three.slice(1).toLowerCase()) : '';
+    const autoCode = `Fl${nextIdx}${threeFormatted}`;
+
+    setForm((prev) => {
+      const isPrevAutoCode = prev.floor_code === '' || (lastAuto.building_id != null && prev.floor_code === lastAuto.code);
+      const isPrevAutoName = prev.name === '' || (lastAuto.building_id != null && prev.name === lastAuto.name);
+      const next = {
+        ...prev,
+        floor_code: isPrevAutoCode ? autoCode : prev.floor_code,
+        name: isPrevAutoName ? autoName : prev.name,
+      };
+      return next;
+    });
+    setLastAuto({ building_id: bIdNum, code: autoCode, name: autoName });
+  }, [isCreate, form.building_id, buildingMap, allFloors]);
 
   // Helpers derived from selected building (must be defined before dependent memos)
   const selectedBuilding = useMemo(() => buildingMap[Number(form.building_id)], [buildingMap, form.building_id]);
@@ -141,6 +183,7 @@ const FloorDetailPage = () => {
           getFloors().catch(() => [])
         ]);
         setBuildings(bld);
+        setAllFloors(_floors || []);
         // Rooms fetch removed
       } catch (e) {
         setError(e?.message || 'Failed to load data');
