@@ -1,12 +1,18 @@
 import api from './api';
+import { getFloors } from './floorService';
 
-// Normalizer
+// Normalizer supports multiple API shapes (snake_case and camelCase)
 const normalizeRoom = (dto) => ({
   room_id: dto?.room_id ?? dto?.id,
-  room_code: dto?.room_code ?? dto?.code ?? '',
+  room_code: dto?.room_code ?? dto?.roomCode ?? dto?.code ?? '',
   name: dto?.name ?? '',
-  floor_id: dto?.floor_id ?? null,
-  floor_name: dto?.floor_name ?? dto?.floor ?? '',
+  floor_id: dto?.floor_id ?? dto?.floorId ?? null,
+  floor_name: dto?.floor_name ?? dto?.floor ?? dto?.floorName ?? '',
+  row: dto?.row ?? dto?.cell_row ?? null,
+  column: dto?.column ?? dto?.cell_column ?? null,
+  cellType: dto?.cellType ?? dto?.cell_type ?? '',
+  created_at: dto?.created_at ?? dto?.createdAt ?? null,
+  updated_at: dto?.updated_at ?? dto?.updatedAt ?? null,
 });
 
 const MOCK_ROOMS = [
@@ -17,9 +23,17 @@ const MOCK_ROOMS = [
 
 export async function getRooms() {
   try {
-    const data = await api.get('/rooms');
-    const arr = Array.isArray(data) ? data.map(normalizeRoom) : [];
-    if (!arr.length) return MOCK_ROOMS.map(normalizeRoom);
+    const data = await api.get('/room'); // backend uses singular resource naming like /floor, /company
+    let arr = Array.isArray(data) ? data.map(normalizeRoom) : [];
+    // Enrich floor_name if backend doesn't provide it
+    const needFloorName = arr.some((r) => !r.floor_name && r.floor_id);
+    if (needFloorName) {
+      try {
+        const floors = await getFloors();
+        const fMap = new Map((floors || []).map((f) => [Number(f.floor_id), f]));
+        arr = arr.map((r) => ({ ...r, floor_name: r.floor_name || fMap.get(Number(r.floor_id))?.name || '' }));
+      } catch (_) {}
+    }
     return arr;
   } catch (_) {
     return MOCK_ROOMS.map(normalizeRoom);
@@ -27,12 +41,11 @@ export async function getRooms() {
 }
 
 export async function patchRoom(room_id, payload) {
-  const body = {
-    room_code: payload?.room_code ?? '',
-    name: payload?.name ?? '',
-  };
+  const roomCode = (payload?.roomCode ?? payload?.room_code ?? '').toString().trim();
+  const name = (payload?.name ?? '').toString().trim();
+  const body = { roomCode, name };
   try {
-    const data = await api.patch(`/rooms/${room_id}`, body);
+    const data = await api.patch(`/room/${room_id}`, body);
     return normalizeRoom(data ?? { ...body, id: room_id });
   } catch (e) {
     // optimistic fallback

@@ -10,6 +10,30 @@ const RoomManagementPage = () => {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ room_code: '', name: '' });
 
+  // Date/time helpers (same pattern used in CompanyManagementPage)
+  const splitDateTime = (iso) => {
+    if (!iso) return { date: '—', time: '' };
+    try {
+      const d = new Date(iso);
+      return {
+        date: d.toLocaleDateString(),
+        time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+    } catch {
+      return { date: '—', time: '' };
+    }
+  };
+
+  const renderDateTime = (iso) => {
+    const { date, time } = splitDateTime(iso);
+    return (
+      <div className="dt-wrap">
+        <div>{date}</div>
+        <div className="subtext">{time}</div>
+      </div>
+    );
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -45,11 +69,20 @@ const RoomManagementPage = () => {
     if (!payload.room_code || !payload.name) return;
     try {
       const updated = await patchRoom(editingId, payload);
-      setRooms(prev => prev.map(r => r.room_id === editingId ? { ...r, ...updated } : r));
+      setRooms(prev => prev.map(r => {
+        if (r.room_id !== editingId) return r;
+        return {
+          ...r,
+          ...updated,
+          // Preserve floor info if backend/normalizer did not include it
+          floor_id: updated.floor_id ?? r.floor_id,
+          floor_name: updated.floor_name || r.floor_name,
+        };
+      }));
       cancelEdit();
     } catch {
       // optimistic fallback
-      setRooms(prev => prev.map(r => r.room_id === editingId ? { ...r, ...payload } : r));
+      setRooms(prev => prev.map(r => r.room_id === editingId ? { ...r, ...payload, floor_id: r.floor_id, floor_name: r.floor_name } : r));
       cancelEdit();
     }
   };
@@ -84,10 +117,12 @@ const RoomManagementPage = () => {
           <div className="no-results">Loading rooms...</div>
         ) : (
           <div className="roles-table">
-            <div className="roles-table-header" style={{ gridTemplateColumns: '1fr 1.5fr 1fr 160px' }}>
+            <div className="roles-table-header" style={{ gridTemplateColumns: '1fr 1.5fr 1fr 1fr 1fr 160px' }}>
               <div className="cell">Room Code</div>
               <div className="cell">Room Name</div>
               <div className="cell">Floor</div>
+              <div className="cell">Created at</div>
+              <div className="cell">Updated at</div>
               <div className="cell actions" style={{ textAlign: 'right' }}>Actions</div>
             </div>
 
@@ -95,7 +130,7 @@ const RoomManagementPage = () => {
               <div className="no-results">No rooms found</div>
             ) : (
               filtered.map((r) => (
-                <div key={r.room_id} className="roles-table-row" style={{ gridTemplateColumns: '1fr 1.5fr 1fr 160px' }}>
+                <div key={r.room_id} className="roles-table-row" style={{ gridTemplateColumns: '1fr 1.5fr 1fr 1fr 1fr 160px' }}>
                   <div className="cell">
                     {editingId === r.room_id ? (
                       <input value={editForm.room_code} onChange={(e) => setEditForm(s => ({ ...s, room_code: e.target.value }))} />
@@ -111,6 +146,8 @@ const RoomManagementPage = () => {
                     )}
                   </div>
                   <div className="cell">{r.floor_name || '-'}</div>
+                  <div className="cell">{renderDateTime(r.created_at)}</div>
+                  <div className="cell">{renderDateTime(r.updated_at)}</div>
                   <div className="cell actions" style={{ textAlign: 'right' }}>
                     {editingId === r.room_id ? (
                       <>
@@ -129,6 +166,7 @@ const RoomManagementPage = () => {
       </div>
     </div>
   );
-};
+}
+;
 
 export default RoomManagementPage;
