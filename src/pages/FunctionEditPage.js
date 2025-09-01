@@ -38,7 +38,7 @@ const FunctionEditPage = () => {
           function_code: f?.function_code || '',
           background_color: f?.background_color || '#A3A3A3',
           company_id: f?.company_id || cs?.[0]?.company_id || cs?.[0]?.id || '',
-          parent_id: f?.parent_id || '',
+          parent_id: (f?.parent_id && String(f.parent_id) !== String(functionId)) ? f.parent_id : '',
           description: f?.description || '',
         });
       } catch (e) {
@@ -110,9 +110,11 @@ const FunctionEditPage = () => {
                 <label>Parent Function</label>
                 <select value={form.parent_id} onChange={e => setForm(s => ({ ...s, parent_id: e.target.value }))}>
                   <option value="">None</option>
-                  {functions.map(f => (
-                    <option key={f.function_id} value={f.function_id}>{f.name} ({f.function_code})</option>
-                  ))}
+                  {functions
+                    .filter(f => String(f.function_id) !== String(functionId))
+                    .map(f => (
+                      <option key={f.function_id} value={f.function_id}>{f.name} ({f.function_code})</option>
+                    ))}
                 </select>
               </div>
               <RichTextEditor

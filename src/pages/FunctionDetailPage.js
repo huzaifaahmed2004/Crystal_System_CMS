@@ -7,7 +7,7 @@ import ColorPicker from '../components/ui/ColorPicker';
 import RichTextEditor from '../components/ui/RichTextEditor';
 
 const FunctionDetailPage = () => {
-  const { functionId, setActiveSection, setFunctionFormMode } = useAppContext();
+  const { functionId, setFunctionId, setActiveSection, setFunctionFormMode } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -18,8 +18,19 @@ const FunctionDetailPage = () => {
     (async () => {
       try {
         setLoading(true);
+        // Recover function id from localStorage on hard refresh
+        let fid = functionId;
+        if (!fid) {
+          try {
+            const stored = localStorage.getItem('activeFunctionId');
+            if (stored) {
+              fid = stored;
+              setFunctionId(stored);
+            }
+          } catch {}
+        }
         const [f, cs, fs] = await Promise.all([
-          getFunctionById(functionId),
+          fid ? getFunctionById(fid) : Promise.resolve(null),
           getCompaniesLite(),
           getFunctions(),
         ]);
@@ -34,7 +45,7 @@ const FunctionDetailPage = () => {
     })();
   }, [functionId]);
 
-  const goBack = () => setActiveSection('function-management');
+  const goBack = () => { try { localStorage.removeItem('activeFunctionId'); } catch {} setActiveSection('function-management'); };
   const goEdit = () => { setFunctionFormMode('edit'); setActiveSection('function-edit'); };
 
   const companyName = useMemo(() => {
@@ -80,16 +91,16 @@ const FunctionDetailPage = () => {
                 <input value={data.name || ''} disabled />
               </div>
 
-              <ColorPicker label="Background Color" value={data.background_color || '#A3A3A3'} disabled onChange={() => {}} />
+              <ColorPicker label="Background Color" value={data.background_color || data.backgroundColor || '#A3A3A3'} disabled onChange={() => {}} />
 
               <div className="form-group">
                 <label>Function Code</label>
-                <input value={data.function_code || ''} disabled />
+                <input value={data.function_code || data.functionCode || ''} disabled />
               </div>
 
               <div className="form-group">
                 <label>Select Company</label>
-                <select value={data.company_id || ''} disabled>
+                <select value={data.company_id || data.company?.company_id || ''} disabled>
                   {/* include current as selected; also list known companies for consistency */}
                   {companies.map(c => (
                     <option key={c.company_id || c.id} value={c.company_id || c.id}>{c.name}</option>
@@ -99,15 +110,15 @@ const FunctionDetailPage = () => {
 
               <div className="form-group">
                 <label>Parent Function</label>
-                <select value={data.parent_id || ''} disabled>
+                <select value={data.parent_id || data.parent_function_id || data.parentFunction?.function_id || ''} disabled>
                   <option value="">None</option>
                   {functions.map(f => (
-                    <option key={f.function_id} value={f.function_id}>{f.name} ({f.function_code})</option>
+                    <option key={f.function_id} value={f.function_id}>{f.name} ({f.function_code || f.functionCode})</option>
                   ))}
                 </select>
               </div>
 
-              <RichTextEditor label="Function Overview" value={data.description || ''} readOnly height={260} />
+              <RichTextEditor label="Function Overview" value={data.description || data.overview || ''} readOnly height={260} />
             </div>
           </div>
         )}

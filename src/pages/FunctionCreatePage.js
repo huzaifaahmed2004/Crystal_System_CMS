@@ -44,8 +44,8 @@ const FunctionCreatePage = () => {
     try {
       setSaving(true);
       const created = await createFunction(form);
-      setFunctionId(created?.function_id || null);
-      setActiveSection('function-detail');
+      // After successful creation, go back to Function Management table
+      setActiveSection('function-management');
     } catch (e) {
       setError(e?.message || 'Failed to create function');
     } finally {

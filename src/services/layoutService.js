@@ -4,15 +4,11 @@ import api from './api';
 
 export async function getCompaniesLite() {
   try {
-    const data = await api.get('/companies');
+    const data = await api.get('/company');
     return Array.isArray(data) ? data : [];
   } catch (e) {
-    console.warn('Mocking companies in layoutService');
-    return [
-      { company_id: 1, name: 'Acme Holdings' },
-      { company_id: 2, name: 'Acme Manufacturing' },
-      { company_id: 3, name: 'Acme Logistics' },
-    ];
+    // Return empty to avoid dummy data in dropdowns
+    return [];
   }
 }
 
