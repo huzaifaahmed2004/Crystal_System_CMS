@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
   const [openUserAccess, setOpenUserAccess] = useState(false);
   const [openCompany, setOpenCompany] = useState(false);
+  const [openActivities, setOpenActivities] = useState(false);
+  const [openOrganization, setOpenOrganization] = useState(false);
 
   // Keep submenu open when a related section is active
   useEffect(() => {
@@ -12,11 +14,25 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     if (['company-overview', 'companies', 'buildings', 'building-detail', 'building-floors', 'rooms', 'company-management', 'organization-management'].includes(activeSection)) {
       setOpenCompany(true);
     }
+    if (['process-management', 'task-management'].includes(activeSection)) {
+      setOpenActivities(true);
+    }
+    if (['job-management', 'function-management'].includes(activeSection)) {
+      setOpenOrganization(true);
+    }
   }, [activeSection]);
   const icons = {
     'dashboard': (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/>
+      </svg>
+    ),
+    'activities': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="6" cy="12" r="2" fill="currentColor" />
+        <circle cx="12" cy="6" r="2" fill="currentColor" />
+        <circle cx="18" cy="12" r="2" fill="currentColor" />
+        <path d="M8 12h8M12 8v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
     ),
     'process-management': (
@@ -27,6 +43,11 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     'task-management': (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M9 11l3 3L22 4l-2-2-8 8-3-3-2 2 5 5zM2 20h20v2H2v-2z" fill="currentColor"/>
+      </svg>
+    ),
+    'organization': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M10 3h4v4h-4V3zm-6 6h4v4H4V9zm12 0h4v4h-4V9zM10 15h4v6h-4v-6zm-6 2h4v4H4v-4zm12 0h4v4h-4v-4z" fill="currentColor"/>
       </svg>
     ),
     'job-management': (
@@ -59,10 +80,9 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'process-management', label: 'Process Management' },
-    { id: 'task-management', label: 'Task Management' },
-    { id: 'job-management', label: 'Job Management' },
-    { id: 'function-management', label: 'Function Management' },
+    { id: 'organization', label: 'Organization' },
+    { id: 'activities', label: 'Activities' },
+  
     { id: 'company', label: 'Structure' },
     { id: 'ai-processes', label: 'AI-Generated Processes' },
     { id: 'user-access', label: 'User & Access Control' },
@@ -166,6 +186,78 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
                           onClick={() => setActiveSection('rooms')}
                         >
                           Rooms
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </>
+              ) : item.id === 'activities' ? (
+                <>
+                  <button
+                    className={`nav-button ${(['process-management', 'task-management'].includes(activeSection)) ? 'active' : ''}`}
+                    onClick={() => setOpenActivities((v) => !v)}
+                    title={collapsed ? item.label : ''}
+                  >
+                    <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                    {!collapsed && (
+                      <span className="nav-label" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        {item.label}
+                        <span className={`submenu-caret ${openActivities ? 'open' : ''}`} aria-hidden="true">▾</span>
+                      </span>
+                    )}
+                  </button>
+                  {!collapsed && openActivities && (
+                    <ul className="nav-sublist" style={{ marginTop: 4, marginLeft: 36 }}>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'process-management' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('process-management')}
+                        >
+                          Processes
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'task-management' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('task-management')}
+                        >
+                          Tasks
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </>
+              ) : item.id === 'organization' ? (
+                <>
+                  <button
+                    className={`nav-button ${(['job-management', 'function-management'].includes(activeSection)) ? 'active' : ''}`}
+                    onClick={() => setOpenOrganization((v) => !v)}
+                    title={collapsed ? item.label : ''}
+                  >
+                    <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                    {!collapsed && (
+                      <span className="nav-label" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        {item.label}
+                        <span className={`submenu-caret ${openOrganization ? 'open' : ''}`} aria-hidden="true">▾</span>
+                      </span>
+                    )}
+                  </button>
+                  {!collapsed && openOrganization && (
+                    <ul className="nav-sublist" style={{ marginTop: 4, marginLeft: 36 }}>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'job-management' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('job-management')}
+                        >
+                          Jobs
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'function-management' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('function-management')}
+                        >
+                          Functions
                         </button>
                       </li>
                     </ul>
