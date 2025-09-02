@@ -25,6 +25,7 @@ import FloorDetailPage from '../pages/FloorDetailPage';
 import PeopleManagementPage from '../pages/PeopleManagementPage';
 import PeopleCreatePage from '../pages/PeopleCreatePage';
 import PeopleEditPage from '../pages/PeopleEditPage';
+import PeopleViewPage from '../pages/PeopleViewPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -120,6 +121,8 @@ const Dashboard = ({ user, onLogout }) => {
         return <PeopleCreatePage />;
       case 'people-edit':
         return <PeopleEditPage />;
+      case 'people-view':
+        return <PeopleViewPage />;
       // Backward compatibility for persisted sessions/older ids
       case 'company-management':
       case 'organization-management':

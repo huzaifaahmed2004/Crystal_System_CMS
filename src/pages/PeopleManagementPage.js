@@ -90,6 +90,13 @@ const PeopleManagementPage = () => {
                     <button
                       className="secondary-btn sm"
                       style={{ marginRight: 6 }}
+                      onClick={() => { try { localStorage.setItem('activePersonId', String(p.people_id)); } catch {}; setActiveSection('people-view'); }}
+                    >
+                      View
+                    </button>
+                    <button
+                      className="secondary-btn sm"
+                      style={{ marginRight: 6 }}
                       onClick={() => { try { localStorage.setItem('activePersonId', String(p.people_id)); } catch {}; setActiveSection('people-edit'); }}
                     >
                       Edit
