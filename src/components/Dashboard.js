@@ -4,6 +4,8 @@ import DashboardPage from '../pages/DashboardPage';
 import ProcessManagementPage from '../pages/ProcessManagementPage';
 import TaskManagementPage from '../pages/TaskManagementPage';
 import JobManagementPage from '../pages/JobManagementPage';
+import JobDetailPage from '../pages/JobDetailPage';
+import JobCreatePage from '../pages/JobCreatePage';
 import FunctionManagementPage from '../pages/FunctionManagementPage';
 import FunctionDetailPage from '../pages/FunctionDetailPage';
 import FunctionEditPage from '../pages/FunctionEditPage';
@@ -37,6 +39,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [floorFormMode, setFloorFormMode] = useState('view');
   const [functionId, setFunctionId] = useState(null);
   const [functionFormMode, setFunctionFormMode] = useState('view');
+  const [jobId, setJobId] = useState(null);
+  const [jobFormMode, setJobFormMode] = useState('view');
 
   // Persist active section across refreshes in this session
   useEffect(() => {
@@ -76,6 +80,10 @@ const Dashboard = ({ user, onLogout }) => {
         return <TaskManagementPage />;
       case 'job-management':
         return <JobManagementPage />;
+      case 'job-detail':
+        return <JobDetailPage />;
+      case 'job-create':
+        return <JobCreatePage />;
       case 'function-management':
         return <FunctionManagementPage />;
       case 'function-detail':
@@ -132,6 +140,8 @@ const Dashboard = ({ user, onLogout }) => {
         floorFormMode, setFloorFormMode,
         functionId, setFunctionId,
         functionFormMode, setFunctionFormMode,
+        jobId, setJobId,
+        jobFormMode, setJobFormMode,
       }}>
         <div className="page-router">
           {renderContent()}

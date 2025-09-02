@@ -22,6 +22,11 @@ export const AppContext = createContext({
   setFunctionId: () => {},
   functionFormMode: 'view', // 'create' | 'edit' | 'view'
   setFunctionFormMode: () => {},
+  // job mgmt navigation
+  jobId: null,
+  setJobId: () => {},
+  jobFormMode: 'view', // 'create' | 'edit' | 'view'
+  setJobFormMode: () => {},
 });
 
 export const useAppContext = () => useContext(AppContext);

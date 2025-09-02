@@ -1,0 +1,39 @@
+/* Minimal job detail styles - aligns with existing role-management.css look */
+.section-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+  background: #fff;
+}
+.section-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 12px;
+}
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.info-item { display: flex; flex-direction: column; }
+.info-item.full { grid-column: 1 / -1; }
+.label { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+.value { font-size: 14px; color: #111827; }
+
+.skills-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.skill-card { border: 1px solid #f3f4f6; border-radius: 8px; padding: 12px; background: #fafafa; }
+.skill-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.skill-name { font-weight: 600; color: #111827; }
+.skill-level { font-size: 12px; padding: 2px 8px; background: #eef2ff; color: #3730a3; border-radius: 999px; }
+.skill-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+
+.paragraph-box { border: 1px dashed #e5e7eb; border-radius: 8px; padding: 12px; background: #fff; }
+.paragraph-box p { white-space: pre-wrap; line-height: 1.6; color: #111827; }
+.muted { color: #6b7280; }
+
+@media (max-width: 768px) {
+  .two-col { grid-template-columns: 1fr; }
+  .skill-body { grid-template-columns: 1fr; }
+}

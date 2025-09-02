@@ -5,8 +5,11 @@ import { getJobs, deleteJob } from '../services/jobService';
 import { getFunctions } from '../services/functionService';
 import { getCompaniesLite } from '../services/layoutService';
 import FormModal from '../components/ui/FormModal';
+import { useAppContext } from '../context/AppContext';
 
 const JobManagementPage = () => {
+  const { setActiveSection, setJobId } = useAppContext();
+
   // API-backed list state
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -213,6 +216,12 @@ const JobManagementPage = () => {
     }
   };
 
+  const handleView = (id) => {
+    try { localStorage.setItem('activeJobId', String(id)); } catch {}
+    setJobId(id);
+    setActiveSection('job-detail');
+  };
+
   const requestDelete = (id, name) => {
     setTargetId(id);
     setTargetName(name || 'this job');
@@ -269,7 +278,7 @@ const JobManagementPage = () => {
   };
 
   const handleCreateJob = () => {
-    setShowCreateModal(true);
+    setActiveSection('job-create');
   };
 
   const handleEditJob = (job) => {
@@ -404,6 +413,9 @@ const JobManagementPage = () => {
             <h2 className="page-title">Job Management</h2>
             <p className="page-subtitle">Browse jobs. Use actions to view or edit.</p>
           </div>
+          <div className="roles-toolbar">
+            <button className="primary-btn" onClick={handleCreateJob}>+ Create Job</button>
+          </div>
         </div>
       </div>
 
@@ -435,7 +447,7 @@ const JobManagementPage = () => {
                   <div className="cell">{j.createdAt ? new Date(j.createdAt).toLocaleString() : '-'}</div>
                   <div className="cell">{j.updatedAt ? new Date(j.updatedAt).toLocaleString() : '-'}</div>
                   <div className="cell actions" style={{ textAlign: 'right' }}>
-                    <button className="secondary-btn sm" onClick={() => console.log('view job', j.job_id)} style={{ marginRight: 6 }}>View</button>
+                    <button className="secondary-btn sm" onClick={() => handleView(j.job_id)} style={{ marginRight: 6 }}>View</button>
                     <button className="secondary-btn sm" onClick={() => console.log('edit job', j.job_id)} style={{ marginRight: 6 }}>Edit</button>
                     <button className="danger-btn sm" disabled={deletingId === j.job_id} onClick={() => requestDelete(j.job_id, j.name)}>
                       {deletingId === j.job_id ? 'Deleting...' : 'Delete'}
