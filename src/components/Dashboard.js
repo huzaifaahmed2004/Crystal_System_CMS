@@ -6,6 +6,7 @@ import TaskManagementPage from '../pages/TaskManagementPage';
 import JobManagementPage from '../pages/JobManagementPage';
 import JobDetailPage from '../pages/JobDetailPage';
 import JobCreatePage from '../pages/JobCreatePage';
+import JobEditPage from '../pages/JobEditPage';
 import FunctionManagementPage from '../pages/FunctionManagementPage';
 import FunctionDetailPage from '../pages/FunctionDetailPage';
 import FunctionEditPage from '../pages/FunctionEditPage';
@@ -84,6 +85,8 @@ const Dashboard = ({ user, onLogout }) => {
         return <JobDetailPage />;
       case 'job-create':
         return <JobCreatePage />;
+      case 'job-edit':
+        return <JobEditPage />;
       case 'function-management':
         return <FunctionManagementPage />;
       case 'function-detail':

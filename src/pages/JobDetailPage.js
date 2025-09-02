@@ -4,6 +4,7 @@ import '../styles/job-detail.css';
 import { useAppContext } from '../context/AppContext';
 import { getJobWithRelations } from '../services/jobService';
 import RichTextEditor from '../components/ui/RichTextEditor';
+import SideTabs from '../components/layout/SideTabs';
 
 const JobDetailPage = () => {
   const { jobId, setJobId, setActiveSection } = useAppContext();
@@ -64,82 +65,94 @@ const JobDetailPage = () => {
         ) : !data ? (
           <div className="no-results">Job not found</div>
         ) : (
-          <div className="role-card">
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Job Name</label>
-                <input value={data.name || ''} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>Job Code</label>
-                <input value={data.jobCode || data.job_code || ''} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>Hourly Rate</label>
-                <input value={data.hourlyRate != null ? String(data.hourlyRate) : ''} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>Max Hours Per Day</label>
-                <input value={data.maxHoursPerDay != null ? String(data.maxHoursPerDay) : ''} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>Function</label>
-                <input value={functionName} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>Company</label>
-                <input value={companyName} disabled />
-              </div>
-            </div>
-
-            {/* Job Level Section */}
-            <div className="section-box">
-              <div className="section-title">Job Level</div>
-              {data.job_level ? (
-                <div className="two-col">
-                  <div className="info-item"><span className="label">Level</span><span className="value">{data.job_level.level_name || '-'}</span></div>
-                  <div className="info-item"><span className="label">Rank</span><span className="value">{data.job_level.level_rank != null ? data.job_level.level_rank : '-'}</span></div>
-                  <div className="info-item full"><span className="label">Description</span><span className="value">{data.job_level.description || '-'}</span></div>
-                </div>
-              ) : (
-                <div className="no-results" style={{ margin: 0 }}>No job level information</div>
-              )}
-            </div>
-
-            {/* Skills Section */}
-            <div className="section-box">
-              <div className="section-title">Skills</div>
-              {Array.isArray(data.jobSkills) && data.jobSkills.length ? (
-                <div className="skills-list">
-                  {data.jobSkills.map((js, idx) => (
-                    <div key={`${js.skill_id || idx}`} className="skill-card">
-                      <div className="skill-header">
-                        <div className="skill-name">{js.skill?.name || '-'}</div>
-                        <div className="skill-level">{js.skill_level?.level_name || '-'}</div>
+          <SideTabs
+            defaultActiveId="basic"
+            tabs={[
+              {
+                id: 'basic',
+                label: 'Basic Details',
+                content: (
+                  <div className="role-card">
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>Job Name</label>
+                        <input value={data.name || ''} disabled />
                       </div>
-                      <div className="skill-body">
-                        <div className="info-item"><span className="label">Skill Description</span><span className="value">{js.skill?.description || '-'}</span></div>
-                        <div className="info-item"><span className="label">Level Rank</span><span className="value">{js.skill_level?.level_rank != null ? js.skill_level.level_rank : '-'}</span></div>
-                        <div className="info-item"><span className="label">Level Description</span><span className="value">{js.skill_level?.description || '-'}</span></div>
+                      <div className="form-group">
+                        <label>Job Code</label>
+                        <input value={data.jobCode || data.job_code || ''} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Hourly Rate</label>
+                        <input value={data.hourlyRate != null ? String(data.hourlyRate) : ''} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Max Hours Per Day</label>
+                        <input value={data.maxHoursPerDay != null ? String(data.maxHoursPerDay) : ''} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Function</label>
+                        <input value={functionName} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Company</label>
+                        <input value={companyName} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Level Name</label>
+                        <input value={(data.job_level?.level_name) || '-'} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Level Rank</label>
+                        <input value={(data.job_level?.level_rank != null ? String(data.job_level.level_rank) : '')} disabled />
+                      </div>
+                      <div className="form-group full">
+                        <label>Level Description</label>
+                        <input value={(data.job_level?.description) || ''} disabled />
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="no-results" style={{ margin: 0 }}>No skills assigned</div>
-              )}
-            </div>
-
-            {/* Job Description */}
-            <div className="section-box">
-              <RichTextEditor label="Job Description" value={data.description || ''} readOnly height={220} />
-            </div>
-          </div>
+                  </div>
+                )
+              },
+              {
+                id: 'description',
+                label: 'Description',
+                content: (
+                  <div className="role-card">
+                    <RichTextEditor label="Job Description" value={data.description || ''} readOnly height={280} />
+                  </div>
+                )
+              },
+              {
+                id: 'skills',
+                label: 'Skills',
+                content: (
+                  <div className="role-card">
+                    <div className="section-title" style={{ marginBottom: 12, fontWeight: 600 }}>Skills</div>
+                    {Array.isArray(data.jobSkills) && data.jobSkills.length ? (
+                      <div className="skills-list">
+                        {data.jobSkills.map((js, idx) => (
+                          <div key={`${js.skill_id || idx}`} className="skill-card">
+                            <div className="skill-header">
+                              <div className="skill-name">{js.skill?.name || '-'}</div>
+                              <div className="skill-level">{js.skill_level?.level_name || '-'}</div>
+                            </div>
+                            <div className="skill-body">
+                              <div className="info-item"><span className="label">Skill Description</span><span className="value">{js.skill?.description || '-'}</span></div>
+                              <div className="info-item"><span className="label">Level Rank</span><span className="value">{js.skill_level?.level_rank != null ? js.skill_level.level_rank : '-'}</span></div>
+                              <div className="info-item"><span className="label">Level Description</span><span className="value">{js.skill_level?.description || '-'}</span></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="no-results" style={{ margin: 0 }}>No skills assigned</div>
+                    )}
+                  </div>
+                )
+              }
+            ]}
+          />
         )}
       </div>
     </div>

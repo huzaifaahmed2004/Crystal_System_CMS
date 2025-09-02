@@ -1,0 +1,17 @@
+.side-tabs { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
+.side-tabs-nav { display: flex; flex-direction: column; gap: 8px; }
+.side-tab-btn { text-align: left; padding: 10px 12px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; color: #374151; font-weight: 600; }
+.side-tab-btn:hover { background: #e5e7eb; }
+.side-tab-btn.active { background: #111827; color: #fff; border-color: #111827; }
+.side-tabs-content { background: transparent; }
+.side-tab-panel { padding: 0; }
+
+/* Ensure the top-right Add Skill button shows its label next to the plus icon */
+.add-skill-btn { display: inline-flex; align-items: center; gap: 8px; color: #fff; }
+.add-skill-btn .btn-label { display: inline-block !important; visibility: visible !important; color: inherit; }
+
+@media (max-width: 900px) {
+  .side-tabs { grid-template-columns: 1fr; }
+  .side-tabs-nav { flex-direction: row; overflow-x: auto; }
+  .side-tab-btn { white-space: nowrap; }
+}

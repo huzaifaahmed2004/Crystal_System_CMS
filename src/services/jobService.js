@@ -6,6 +6,22 @@ export const getJobs = async () => {
   return Array.isArray(res) ? res : [];
 };
 
+export const updateJob = async (id, payload) => {
+  if (!id) throw new Error('Job id is required');
+  const body = {
+    jobCode: String(payload.jobCode || payload.job_code || '').trim(),
+    name: String(payload.name || '').trim(),
+    description: String(payload.description || ''),
+    function_id: payload.function_id != null ? Number(payload.function_id) : null,
+    company_id: payload.company_id != null ? Number(payload.company_id) : null,
+    hourlyRate: payload.hourlyRate != null ? Number(payload.hourlyRate) : null,
+    maxHoursPerDay: payload.maxHoursPerDay != null ? Number(payload.maxHoursPerDay) : null,
+    jobLevel: payload.jobLevel || payload.job_level_name || '',
+    skills: Array.isArray(payload.skills) ? payload.skills : [],
+  };
+  return api.patch(`/job/${id}`, body);
+};
+
 export const createJob = async (payload) => {
   const body = {
     jobCode: String(payload.jobCode || payload.job_code || '').trim(),

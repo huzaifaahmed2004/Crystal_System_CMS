@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
 import { useAppContext } from '../context/AppContext';
-import { createJob } from '../services/jobService';
 import { getCompaniesLite } from '../services/layoutService';
 import { getFunctions } from '../services/functionService';
+import { getJobWithRelations, updateJob } from '../services/jobService';
 import RichTextEditor from '../components/ui/RichTextEditor';
 import SideTabs from '../components/layout/SideTabs';
 
-// Fixed level mapping
+// Fixed level mapping (same as create page)
 const LEVELS = [
   { rank: 1, name: 'NOVICE', description: 'Beginner, requires supervision' },
   { rank: 2, name: 'INTERMEDIATE', description: 'Can perform with some guidance' },
@@ -18,11 +18,14 @@ const LEVELS = [
 
 const emptySkill = { name: '', level: '' };
 
-const JobCreatePage = () => {
-  const { setActiveSection } = useAppContext();
+const JobEditPage = () => {
+  const { jobId, setJobId, setActiveSection } = useAppContext();
 
   const [companies, setCompanies] = useState([]);
   const [functions, setFunctions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const [form, setForm] = useState({
     jobCode: '',
@@ -32,47 +35,71 @@ const JobCreatePage = () => {
     function_id: '',
     hourlyRate: '',
     maxHoursPerDay: '',
-    jobLevel: '', // string from LEVELS.name
+    jobLevel: '',
     skills: [],
   });
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
+  // fetch lists and job
   useEffect(() => {
     (async () => {
       try {
+        setLoading(true);
         const [cs, fs] = await Promise.all([
           getCompaniesLite().catch(() => []),
           getFunctions().catch(() => []),
         ]);
         setCompanies(Array.isArray(cs) ? cs : []);
         setFunctions(Array.isArray(fs) ? fs : []);
+
+        let id = jobId;
+        if (!id) {
+          try {
+            const stored = localStorage.getItem('activeJobId');
+            if (stored) {
+              id = stored;
+              setJobId(stored);
+            }
+          } catch {}
+        }
+        if (!id) throw new Error('Missing job id');
+
+        const data = await getJobWithRelations(id);
+        if (data) {
+          setForm({
+            jobCode: data.jobCode || data.job_code || '',
+            name: data.name || '',
+            description: data.description || '',
+            company_id: data.company_id != null ? String(data.company_id) : '',
+            function_id: data.function_id != null ? String(data.function_id) : '',
+            hourlyRate: data.hourlyRate != null ? String(data.hourlyRate) : '',
+            maxHoursPerDay: data.maxHoursPerDay != null ? String(data.maxHoursPerDay) : '',
+            jobLevel: data.jobLevel || data.job_level?.level_name || '',
+            skills: Array.isArray(data.jobSkills)
+              ? data.jobSkills.map(js => ({
+                  name: js?.skill?.name || '',
+                  level: js?.skill_level?.level_name || '',
+                }))
+              : [],
+          });
+        }
       } catch (e) {
-        // already handled by catch above; keep page usable
+        setError(e?.message || 'Failed to load job');
+      } finally {
+        setLoading(false);
       }
     })();
-  }, []);
+  }, [jobId, setJobId]);
 
   const onBack = () => setActiveSection('job-management');
-
   const setField = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
-  const setJobLevelByName = (name) => setForm(prev => ({ ...prev, jobLevel: name || '' }));
-  const setJobLevelByRank = (rank) => {
-    const r = Number(rank);
-    const match = LEVELS.find(l => l.rank === r);
-    setForm(prev => ({ ...prev, jobLevel: match ? match.name : '' }));
-  };
-
-  const updateSkill = (index, updater) => {
+  const updateSkillAt = (index, updater) => {
     setForm(prev => {
       const next = [...prev.skills];
       next[index] = updater(next[index]);
       return { ...prev, skills: next };
     });
   };
-
   const addSkill = () => setForm(prev => ({ ...prev, skills: [...prev.skills, { ...emptySkill }] }));
   const removeSkill = (index) => setForm(prev => ({ ...prev, skills: prev.skills.filter((_, i) => i !== index) }));
 
@@ -92,6 +119,13 @@ const JobCreatePage = () => {
     try {
       setSaving(true);
       setError('');
+      // determine id
+      let id = jobId;
+      if (!id) {
+        try { id = localStorage.getItem('activeJobId') || id; } catch {}
+      }
+      if (!id) throw new Error('Missing job id');
+
       const payload = {
         jobCode: form.jobCode,
         name: form.name,
@@ -105,27 +139,35 @@ const JobCreatePage = () => {
           .filter(s => String(s.name).trim() && String(s.level))
           .map(s => ({ name: s.name.trim(), level: s.level })),
       };
-      await createJob(payload);
+      await updateJob(id, payload);
       setActiveSection('job-management');
     } catch (e) {
-      setError(e?.message || 'Failed to create job');
+      setError(e?.message || 'Failed to update job');
     } finally {
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="page-container">
+        <div className="page-content"><div className="no-results">Loading...</div></div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="header-content">
           <div>
-            <h2 className="page-title">Create Job</h2>
-            <p className="page-subtitle">Fill in job info, select one job level, and add multiple skills</p>
+            <h2 className="page-title">Edit Job</h2>
+            <p className="page-subtitle">Update job info, level, description, and skills</p>
           </div>
           <div className="roles-toolbar">
             <button className="secondary-btn" onClick={onBack}>Cancel</button>
             <button className="primary-btn" onClick={onSubmit} disabled={!canSave || saving}>
-              {saving ? 'Saving...' : 'Save Job'}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -237,21 +279,23 @@ const JobCreatePage = () => {
                       </svg>
                     </button>
                   </div>
+
                   {(!form.skills || form.skills.length === 0) && (
                     <div className="no-results" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                       <span>No skills added yet</span>
                     </div>
                   )}
+
                   {form.skills.map((s, idx) => (
                     <div key={idx} className="role-card" style={{ background: '#fafafa', border: '1px solid #f3f4f6', marginBottom: 12 }}>
                       <div className="form-grid">
                         <div className="form-group">
                           <label>Skill Name</label>
-                          <input value={s.name || ''} onChange={e => updateSkill(idx, prev => ({ ...prev, name: e.target.value }))} placeholder="e.g. Machine Operation" />
+                          <input value={s.name || ''} onChange={e => updateSkillAt(idx, prev => ({ ...prev, name: e.target.value }))} placeholder="e.g. Machine Operation" />
                         </div>
                         <div className="form-group">
                           <label>Level Name</label>
-                          <select value={s.level || ''} onChange={e => updateSkill(idx, prev => ({ ...prev, level: e.target.value }))}>
+                          <select value={s.level || ''} onChange={e => updateSkillAt(idx, prev => ({ ...prev, level: e.target.value }))}>
                             <option value="">Select Level Name</option>
                             {LEVELS.map(l => (
                               <option key={l.name} value={l.name}>{l.name}</option>
@@ -260,7 +304,7 @@ const JobCreatePage = () => {
                         </div>
                         <div className="form-group">
                           <label>Level Rank</label>
-                          <select value={(LEVELS.find(l => l.name === s.level)?.rank) || ''} onChange={e => updateSkill(idx, prev => ({ ...prev, level: (LEVELS.find(l => l.rank === Number(e.target.value))?.name) || '' }))}>
+                          <select value={(LEVELS.find(l => l.name === s.level)?.rank) || ''} onChange={e => updateSkillAt(idx, prev => ({ ...prev, level: (LEVELS.find(l => l.rank === Number(e.target.value))?.name) || '' }))}>
                             <option value="">Select Rank</option>
                             {LEVELS.map(l => (
                               <option key={l.rank} value={l.rank}>{l.rank}</option>
@@ -287,4 +331,4 @@ const JobCreatePage = () => {
   );
 };
 
-export default JobCreatePage;
+export default JobEditPage;

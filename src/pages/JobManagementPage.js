@@ -281,6 +281,12 @@ const JobManagementPage = () => {
     setActiveSection('job-create');
   };
 
+  const handleEdit = (id) => {
+    try { localStorage.setItem('activeJobId', String(id)); } catch {}
+    setJobId(id);
+    setActiveSection('job-edit');
+  };
+
   const handleEditJob = (job) => {
     setEditingJob(job);
     setShowCreateModal(true);
@@ -448,7 +454,7 @@ const JobManagementPage = () => {
                   <div className="cell">{j.updatedAt ? new Date(j.updatedAt).toLocaleString() : '-'}</div>
                   <div className="cell actions" style={{ textAlign: 'right' }}>
                     <button className="secondary-btn sm" onClick={() => handleView(j.job_id)} style={{ marginRight: 6 }}>View</button>
-                    <button className="secondary-btn sm" onClick={() => console.log('edit job', j.job_id)} style={{ marginRight: 6 }}>Edit</button>
+                    <button className="secondary-btn sm" onClick={() => handleEdit(j.job_id)} style={{ marginRight: 6 }}>Edit</button>
                     <button className="danger-btn sm" disabled={deletingId === j.job_id} onClick={() => requestDelete(j.job_id, j.name)}>
                       {deletingId === j.job_id ? 'Deleting...' : 'Delete'}
                     </button>
