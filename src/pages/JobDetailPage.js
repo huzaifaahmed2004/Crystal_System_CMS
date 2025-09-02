@@ -5,6 +5,8 @@ import { useAppContext } from '../context/AppContext';
 import { getJobWithRelations } from '../services/jobService';
 import RichTextEditor from '../components/ui/RichTextEditor';
 import SideTabs from '../components/layout/SideTabs';
+import SkillTable from '../components/ui/SkillTable';
+import { LEVELS } from '../components/ui/levels';
 
 const JobDetailPage = () => {
   const { jobId, setJobId, setActiveSection } = useAppContext();
@@ -129,25 +131,15 @@ const JobDetailPage = () => {
                 content: (
                   <div className="role-card">
                     <div className="section-title" style={{ marginBottom: 12, fontWeight: 600 }}>Skills</div>
-                    {Array.isArray(data.jobSkills) && data.jobSkills.length ? (
-                      <div className="skills-list">
-                        {data.jobSkills.map((js, idx) => (
-                          <div key={`${js.skill_id || idx}`} className="skill-card">
-                            <div className="skill-header">
-                              <div className="skill-name">{js.skill?.name || '-'}</div>
-                              <div className="skill-level">{js.skill_level?.level_name || '-'}</div>
-                            </div>
-                            <div className="skill-body">
-                              <div className="info-item"><span className="label">Skill Description</span><span className="value">{js.skill?.description || '-'}</span></div>
-                              <div className="info-item"><span className="label">Level Rank</span><span className="value">{js.skill_level?.level_rank != null ? js.skill_level.level_rank : '-'}</span></div>
-                              <div className="info-item"><span className="label">Level Description</span><span className="value">{js.skill_level?.description || '-'}</span></div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="no-results" style={{ margin: 0 }}>No skills assigned</div>
-                    )}
+                    <SkillTable
+                      mode="view"
+                      skills={(Array.isArray(data.jobSkills) ? data.jobSkills : []).map(js => ({
+                        name: js?.skill?.name || '-',
+                        skillDescription: js?.skill?.description || '',
+                        level: js?.skill_level?.level_name || '',
+                      }))}
+                      levels={LEVELS}
+                    />
                   </div>
                 )
               }

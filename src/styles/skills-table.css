@@ -1,0 +1,35 @@
+.skills-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+.skills-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+.skills-table th, .skills-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: left;
+}
+.skills-table thead th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #111827;
+}
+.skills-table tbody tr:hover {
+  background: #fafafa;
+}
+.skills-table input, .skills-table select {
+  width: 100%;
+}
+.skills-table .add-row td {
+  background: #fcfcfd;
+}
+/* long text wrapping for description cells */
+.skills-table td.wrap {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}

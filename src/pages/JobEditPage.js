@@ -6,15 +6,9 @@ import { getFunctions } from '../services/functionService';
 import { getJobWithRelations, updateJob } from '../services/jobService';
 import RichTextEditor from '../components/ui/RichTextEditor';
 import SideTabs from '../components/layout/SideTabs';
-
-// Fixed level mapping (same as create page)
-const LEVELS = [
-  { rank: 1, name: 'NOVICE', description: 'Beginner, requires supervision' },
-  { rank: 2, name: 'INTERMEDIATE', description: 'Can perform with some guidance' },
-  { rank: 3, name: 'PROFICIENT', description: 'Independent, solid contributor' },
-  { rank: 4, name: 'ADVANCED', description: 'Expert in most scenarios' },
-  { rank: 5, name: 'EXPERT', description: 'Authority, mentor, innovator' },
-];
+import SkillTable from '../components/ui/SkillTable';
+import SkillAddModal from '../components/ui/SkillAddModal';
+import { LEVELS } from '../components/ui/levels';
 
 const emptySkill = { name: '', level: '' };
 
@@ -25,6 +19,7 @@ const JobEditPage = () => {
   const [functions, setFunctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showAddSkill, setShowAddSkill] = useState(false);
   const [error, setError] = useState('');
 
   const [form, setForm] = useState({
@@ -271,56 +266,29 @@ const JobEditPage = () => {
               label: 'Skills',
               content: (
                 <div className="role-card">
-                  <div className="section-title" style={{ marginBottom: 12, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="section-title" style={{ marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>Skills</span>
-                    <button className="primary-btn add-skill-btn icon-only" type="button" onClick={addSkill} title="Add Skill" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, minWidth: 36, padding: 0, lineHeight: 1 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <button type="button" className="primary-btn icon-square" onClick={() => setShowAddSkill(true)} aria-label="Add Skill" title="Add Skill">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
                     </button>
                   </div>
-
-                  {(!form.skills || form.skills.length === 0) && (
-                    <div className="no-results" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
-                      <span>No skills added yet</span>
-                    </div>
-                  )}
-
-                  {form.skills.map((s, idx) => (
-                    <div key={idx} className="role-card" style={{ background: '#fafafa', border: '1px solid #f3f4f6', marginBottom: 12 }}>
-                      <div className="form-grid">
-                        <div className="form-group">
-                          <label>Skill Name</label>
-                          <input value={s.name || ''} onChange={e => updateSkillAt(idx, prev => ({ ...prev, name: e.target.value }))} placeholder="e.g. Machine Operation" />
-                        </div>
-                        <div className="form-group">
-                          <label>Level Name</label>
-                          <select value={s.level || ''} onChange={e => updateSkillAt(idx, prev => ({ ...prev, level: e.target.value }))}>
-                            <option value="">Select Level Name</option>
-                            {LEVELS.map(l => (
-                              <option key={l.name} value={l.name}>{l.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label>Level Rank</label>
-                          <select value={(LEVELS.find(l => l.name === s.level)?.rank) || ''} onChange={e => updateSkillAt(idx, prev => ({ ...prev, level: (LEVELS.find(l => l.rank === Number(e.target.value))?.name) || '' }))}>
-                            <option value="">Select Rank</option>
-                            {LEVELS.map(l => (
-                              <option key={l.rank} value={l.rank}>{l.rank}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="form-group full">
-                          <label>Level Description</label>
-                          <input disabled value={LEVELS.find(l => l.name === s.level)?.description || ''} />
-                        </div>
-                        <div className="form-group full" style={{ textAlign: 'right' }}>
-                          <button className="danger-btn sm" type="button" onClick={() => removeSkill(idx)} disabled={form.skills.length <= 1}>Remove</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <SkillTable
+                    mode="manage"
+                    skills={form.skills}
+                    levels={LEVELS}
+                    onDelete={(idx) => removeSkill(idx)}
+                  />
+                  <SkillAddModal
+                    open={showAddSkill}
+                    onClose={() => setShowAddSkill(false)}
+                    levels={LEVELS}
+                    onSave={(s) => {
+                      setForm(prev => ({ ...prev, skills: [...prev.skills, s] }));
+                      setShowAddSkill(false);
+                    }}
+                  />
                 </div>
               )
             }

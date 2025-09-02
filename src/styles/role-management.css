@@ -1,3 +1,17 @@
+/* Square icon-only button utility that pairs with .primary-btn/.secondary-btn */
+.icon-square {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 10px;
+}
+
+.icon-square svg { pointer-events: none; }
 /* Role Management Styles */
 
 .header-content {
