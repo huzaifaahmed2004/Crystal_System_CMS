@@ -22,6 +22,9 @@ import BuildingDetailPage from '../pages/BuildingDetailPage';
 import BuildingEditPage from '../pages/BuildingEditPage';
 import FloorManagementPage from '../pages/FloorManagementPage';
 import FloorDetailPage from '../pages/FloorDetailPage';
+import PeopleManagementPage from '../pages/PeopleManagementPage';
+import PeopleCreatePage from '../pages/PeopleCreatePage';
+import PeopleEditPage from '../pages/PeopleEditPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -111,6 +114,12 @@ const Dashboard = ({ user, onLogout }) => {
         return <FloorDetailPage />;
       case 'rooms':
         return <RoomManagementPage />;
+      case 'people-management':
+        return <PeopleManagementPage />;
+      case 'people-create':
+        return <PeopleCreatePage />;
+      case 'people-edit':
+        return <PeopleEditPage />;
       // Backward compatibility for persisted sessions/older ids
       case 'company-management':
       case 'organization-management':

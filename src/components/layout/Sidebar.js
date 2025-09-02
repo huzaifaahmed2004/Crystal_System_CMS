@@ -17,7 +17,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     if (['process-management', 'task-management'].includes(activeSection)) {
       setOpenActivities(true);
     }
-    if (['job-management', 'function-management'].includes(activeSection)) {
+    if (['job-management', 'function-management', 'people-management'].includes(activeSection)) {
       setOpenOrganization(true);
     }
   }, [activeSection]);
@@ -258,6 +258,14 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
                           onClick={() => setActiveSection('function-management')}
                         >
                           Functions
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'people-management' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('people-management')}
+                        >
+                          People
                         </button>
                       </li>
                     </ul>
