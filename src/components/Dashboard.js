@@ -3,10 +3,14 @@ import MainLayout from './layout/MainLayout';
 import DashboardPage from '../pages/DashboardPage';
 import ProcessManagementPage from '../pages/ProcessManagementPage';
 import TaskManagementPage from '../pages/TaskManagementPage';
+import TaskListTablePage from '../pages/TaskListTablePage';
+import TaskCreatePage from '../pages/TaskCreatePage';
 import JobManagementPage from '../pages/JobManagementPage';
 import JobDetailPage from '../pages/JobDetailPage';
 import JobCreatePage from '../pages/JobCreatePage';
 import JobEditPage from '../pages/JobEditPage';
+import TaskDetailPage from '../pages/TaskDetailPage';
+import TaskEditPage from '../pages/TaskEditPage';
 import FunctionManagementPage from '../pages/FunctionManagementPage';
 import FunctionDetailPage from '../pages/FunctionDetailPage';
 import FunctionEditPage from '../pages/FunctionEditPage';
@@ -82,7 +86,13 @@ const Dashboard = ({ user, onLogout }) => {
       case 'process-management':
         return <ProcessManagementPage />;
       case 'task-management':
-        return <TaskManagementPage />;
+        return <TaskListTablePage />;
+      case 'task-create':
+        return <TaskCreatePage />;
+      case 'task-detail':
+        return <TaskDetailPage />;
+      case 'task-edit':
+        return <TaskEditPage />;
       case 'job-management':
         return <JobManagementPage />;
       case 'job-detail':

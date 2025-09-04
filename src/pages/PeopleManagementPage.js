@@ -8,18 +8,22 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 const PeopleManagementPage = () => {
   const { setActiveSection } = useAppContext();
   const [list, setList] = useState([]);
+  const [allList, setAllList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
   const [confirmId, setConfirmId] = useState(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         const res = await getPeople();
-        setList(Array.isArray(res) ? res : []);
+        const arr = Array.isArray(res) ? res : [];
+        setList(arr);
+        setAllList(arr);
       } catch (e) {
         setError(e?.message || 'Failed to load people');
       } finally {
@@ -47,6 +51,34 @@ const PeopleManagementPage = () => {
 
   const fullName = (p) => [p?.people_name, p?.people_surname].filter(Boolean).join(' ') || '-';
 
+  const handleSearch = () => {
+    const term = String(searchTerm || '').trim().toLowerCase();
+    if (!term) {
+      setList(allList);
+      return;
+    }
+    const filtered = allList.filter(p => {
+      const name = String(p?.people_name || '').toLowerCase();
+      const surname = String(p?.people_surname || '').toLowerCase();
+      const email = String(p?.people_email || '').toLowerCase();
+      const phone = String(p?.people_phone || '').toLowerCase();
+      const full = `${name} ${surname}`.trim();
+      return (
+        name.includes(term) ||
+        surname.includes(term) ||
+        full.includes(term) ||
+        email.includes(term) ||
+        phone.includes(term)
+      );
+    });
+    setList(filtered);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setList(allList);
+  };
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -56,6 +88,18 @@ const PeopleManagementPage = () => {
             <p className="page-subtitle">Browse people. Use actions to manage.</p>
           </div>
           <div className="roles-toolbar">
+            <div className="roles-search">
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Search name, email, phone"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+              />
+              <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
+              <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
+            </div>
             <button className="primary-btn" onClick={() => setActiveSection('people-create')}>+ Add Person</button>
           </div>
         </div>
