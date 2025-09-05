@@ -1,324 +1,177 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import '../styles/process-management.css';
+import { getProcesses, deleteProcess } from '../services/processService';
+import { getCompaniesLite } from '../services/layoutService';
+import '../styles/role-management.css';
+import { useAppContext } from '../context/AppContext';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 const ProcessManagementPage = () => {
-  // Dummy process data
-  const [processes] = useState([
-    {
-      id: 1,
-      name: "Customer Onboarding Process",
-      description: "Complete workflow for new customer registration and setup",
+  const { setActiveSection } = useAppContext();
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [list, setList] = React.useState([]);
+  const [companiesMap, setCompaniesMap] = React.useState({});
+  const [search, setSearch] = React.useState('');
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+  const [selected, setSelected] = React.useState(null); // process selected for deletion
 
-      category: "Customer Management",
-      priority: "High",
-      createdDate: "2024-01-15",
-      lastModified: "2024-01-20",
-      owner: "John Smith",
-      steps: 8,
-      avgExecutionTime: "45 minutes",
-      successRate: 94.5
-    },
-    {
-      id: 2,
-      name: "Invoice Processing Workflow",
-      description: "Automated invoice validation and approval process",
+  React.useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const [processesRes, companiesRes] = await Promise.all([
+          getProcesses(),
+          getCompaniesLite().catch(() => []),
+        ]);
+        setList(Array.isArray(processesRes) ? processesRes : []);
+        const cMap = {};
+        (companiesRes || []).forEach(c => { cMap[String(c.company_id || c.id)] = c.name; });
+        setCompaniesMap(cMap);
+      } catch (e) {
+        setError(e?.message || 'Failed to load processes');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-      category: "Finance",
-      priority: "Medium",
-      createdDate: "2024-01-10",
-      lastModified: "2024-01-18",
-      owner: "Sarah Johnson",
-      steps: 6,
-      avgExecutionTime: "15 minutes",
-      successRate: 98.2
-    },
-    {
-      id: 3,
-      name: "Employee Offboarding",
-      description: "Systematic process for employee departure procedures",
+  const fmt = (v) => {
+    try { const d = new Date(v); return isNaN(d.getTime()) ? '-' : d.toLocaleString(); } catch { return '-'; }
+  };
 
-      category: "HR",
-      priority: "Low",
-      createdDate: "2024-01-05",
-      lastModified: "2024-01-12",
-      owner: "Mike Davis",
-      steps: 12,
-      avgExecutionTime: "2 hours",
-      successRate: 87.3
-    },
-    {
-      id: 4,
-      name: "Product Quality Check",
-      description: "Quality assurance process for manufactured products",
-
-      category: "Manufacturing",
-      priority: "High",
-      createdDate: "2024-01-08",
-      lastModified: "2024-01-22",
-      owner: "Lisa Chen",
-      steps: 15,
-      avgExecutionTime: "30 minutes",
-      successRate: 96.8
-    },
-    {
-      id: 5,
-      name: "Data Backup Procedure",
-      description: "Daily automated data backup and verification process",
-
-      category: "IT Operations",
-      priority: "High",
-      createdDate: "2024-01-01",
-      lastModified: "2024-01-25",
-      owner: "Tom Wilson",
-      steps: 4,
-      avgExecutionTime: "10 minutes",
-      successRate: 99.1
-    },
-    {
-      id: 6,
-      name: "Marketing Campaign Launch",
-      description: "End-to-end process for launching marketing campaigns",
-
-      category: "Marketing",
-      priority: "Medium",
-      createdDate: "2024-01-20",
-      lastModified: "2024-01-23",
-      owner: "Emma Brown",
-      steps: 10,
-      avgExecutionTime: "3 hours",
-      successRate: 91.7
-    }
-  ]);
-
-  // State for search and filters
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [priorityFilter, setPriorityFilter] = useState('All');
-  const [selectedProcess, setSelectedProcess] = useState(null);
-
-  // Get unique values for filter options
-  const categories = [...new Set(processes.map(p => p.category))];
-
-  const priorities = [...new Set(processes.map(p => p.priority))];
-
-  // Filtered processes
-  const filteredProcesses = useMemo(() => {
-    return processes.filter(process => {
-      const matchesSearch = process.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           process.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           process.owner.toLowerCase().includes(searchTerm.toLowerCase());
-      
-
-      const matchesCategory = categoryFilter === 'All' || process.category === categoryFilter;
-      const matchesPriority = priorityFilter === 'All' || process.priority === priorityFilter;
-
-      return matchesSearch && matchesCategory && matchesPriority;
+  const filtered = React.useMemo(() => {
+    const q = (search || '').toLowerCase().trim();
+    if (!q) return list;
+    return (list || []).filter(p => {
+      const code = String(p.process_code || '').toLowerCase();
+      const name = String(p.process_name || '').toLowerCase();
+      const comp = String(companiesMap[String(p.company_id)] || '').toLowerCase();
+      return code.includes(q) || name.includes(q) || comp.includes(q);
     });
-  }, [processes, searchTerm, categoryFilter, priorityFilter]);
+  }, [list, search, companiesMap]);
 
+  const openDelete = (proc) => {
+    setSelected(proc);
+    setConfirmOpen(true);
+  };
 
+  const closeDelete = () => {
+    if (deleting) return;
+    setConfirmOpen(false);
+    setSelected(null);
+  };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High': return '#ef4444';
-      case 'Medium': return '#f59e0b';
-      case 'Low': return '#10b981';
-      default: return '#6b7280';
+  const confirmDelete = async () => {
+    if (!selected?.process_id) return;
+    try {
+      setDeleting(true);
+      setError('');
+      await deleteProcess(selected.process_id);
+      // Optimistically remove from list
+      setList(prev => prev.filter(x => x.process_id !== selected.process_id));
+      setConfirmOpen(false);
+      setSelected(null);
+    } catch (e) {
+      setError(e?.message || 'Failed to delete process');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleProcessClick = (process) => {
-    setSelectedProcess(process);
-  };
-
-  const handleBackToList = () => {
-    setSelectedProcess(null);
-  };
-
-  // Process Detail View
-  if (selectedProcess) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="process-detail-header">
-            <button className="back-button" onClick={handleBackToList}>
-              ← Back to Process List
-            </button>
-            <div>
-              <h2 className="page-title">{selectedProcess.name}</h2>
-              <p className="page-subtitle">{selectedProcess.description}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="process-detail-content">
-          <div className="process-detail-grid">
-            <div className="process-info-card">
-              <h3>Process Information</h3>
-              <div className="info-grid">
-
-                <div className="info-item">
-                  <label>Category</label>
-                  <span>{selectedProcess.category}</span>
-                </div>
-                <div className="info-item">
-                  <label>Priority</label>
-                  <span className="priority-badge" style={{ color: getPriorityColor(selectedProcess.priority) }}>
-                    {selectedProcess.priority}
-                  </span>
-                </div>
-                <div className="info-item">
-                  <label>Owner</label>
-                  <span>{selectedProcess.owner}</span>
-                </div>
-                <div className="info-item">
-                  <label>Created Date</label>
-                  <span>{selectedProcess.createdDate}</span>
-                </div>
-                <div className="info-item">
-                  <label>Last Modified</label>
-                  <span>{selectedProcess.lastModified}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="process-stats-card">
-              <h3>Performance Metrics</h3>
-              <div className="stats-grid">
-                <div className="stat-item">
-                  <div className="stat-value">{selectedProcess.steps}</div>
-                  <div className="stat-label">Total Steps</div>
-                </div>
-                <div className="stat-item">
-                  <div className="stat-value">{selectedProcess.avgExecutionTime}</div>
-                  <div className="stat-label">Avg. Execution Time</div>
-                </div>
-                <div className="stat-item">
-                  <div className="stat-value">{selectedProcess.successRate}%</div>
-                  <div className="stat-label">Success Rate</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="process-actions-card">
-            <h3>Actions</h3>
-            <div className="action-buttons">
-              <button className="action-btn primary">Edit Process</button>
-              <button className="action-btn secondary">Duplicate</button>
-              <button className="action-btn secondary">Export</button>
-              <button className="action-btn danger">Delete</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Process List View
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="header-content">
           <div>
-            <h2 className="page-title">Process Management</h2>
-            <p className="page-subtitle">Create, edit, delete, and optimize business processes</p>
+            <h2 className="page-title">Processes</h2>
+            <p className="page-subtitle">Browse all processes</p>
           </div>
-          <button className="create-btn">+ Create New Process</button>
+          <div className="roles-toolbar">
+            <button className="primary-btn" onClick={() => setActiveSection('process-create')} style={{ marginRight: 8 }}>+ Create Process</button>
+            <div className="roles-search">
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Search by code, name, or company..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       </div>
-      
+
       <div className="page-content">
-        {/* Search and Filters */}
-        <div className="filters-section">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Search processes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          
-          <div className="filters">
-
-
-            <select 
-              value={categoryFilter} 
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="filter-select"
-            >
-              <option value="All">All Categories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-
-            <select 
-              value={priorityFilter} 
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="filter-select"
-            >
-              <option value="All">All Priorities</option>
-              {priorities.map(priority => (
-                <option key={priority} value={priority}>{priority}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Process List */}
-        <div className="process-list">
-          {filteredProcesses.length === 0 ? (
-            <div className="no-results">
-              <p>No processes found matching your criteria.</p>
+        {error && <div className="error-banner">{error}</div>}
+        {loading ? (
+          <div className="no-results">Loading processes...</div>
+        ) : (
+          <div className="roles-table">
+            <div className="roles-table-header" style={{ gridTemplateColumns: '1.2fr 1.8fr 1.4fr 1.2fr 1.2fr 200px' }}>
+              <div className="cell">Process Code</div>
+              <div className="cell">Process Name</div>
+              <div className="cell">Company</div>
+              <div className="cell">Created At</div>
+              <div className="cell">Updated At</div>
+              <div className="cell actions" style={{ textAlign: 'right' }}>Actions</div>
             </div>
-          ) : (
-            filteredProcesses.map(process => (
-              <div 
-                key={process.id} 
-                className="process-card"
-                onClick={() => handleProcessClick(process)}
-              >
-                <div className="process-header">
-                  <h3 className="process-name">{process.name}</h3>
-                  <div className="process-badges">
 
-                    <span 
-                      className="priority-badge"
-                      style={{ color: getPriorityColor(process.priority) }}
+            {(!filtered || filtered.length === 0) ? (
+              <div className="no-results">No processes found</div>
+            ) : (
+              filtered.map(p => (
+                <div key={p.process_id} className="roles-table-row" style={{ gridTemplateColumns: '1.2fr 1.8fr 1.4fr 1.2fr 1.2fr 200px' }}>
+                  <div className="cell">{p.process_code || '-'}</div>
+                  <div className="cell">{p.process_name || '-'}</div>
+                  <div className="cell">{companiesMap[String(p.company_id)] || '-'}</div>
+                  <div className="cell">{fmt(p.created_at)}</div>
+                  <div className="cell">{fmt(p.updated_at)}</div>
+                  <div className="cell actions" style={{ textAlign: 'right' }}>
+                    <button
+                      className="secondary-btn sm"
+                      style={{ marginRight: 6 }}
+                      onClick={() => { try { localStorage.setItem('activeProcessId', String(p.process_id)); } catch {}; setActiveSection('process-view'); }}
                     >
-                      {process.priority}
-                    </span>
+                      View
+                    </button>
+                    <button
+                      className="secondary-btn sm"
+                      style={{ marginRight: 6 }}
+                      onClick={() => { try { localStorage.setItem('activeProcessId', String(p.process_id)); } catch {}; setActiveSection('process-edit'); }}
+                    >
+                      Edit
+                    </button>
+                    <button className="danger-btn sm" onClick={() => openDelete(p)}>
+                      Delete
+                    </button>
                   </div>
                 </div>
-                
-                <p className="process-description">{process.description}</p>
-                
-                <div className="process-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">Category:</span>
-                    <span className="meta-value">{process.category}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Owner:</span>
-                    <span className="meta-value">{process.owner}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Success Rate:</span>
-                    <span className="meta-value">{process.successRate}%</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Last Modified:</span>
-                    <span className="meta-value">{process.lastModified}</span>
-                  </div>
-                </div>
-              </div>
-            ))
+              ))
+            )}
+          </div>
+        )}
+        <ConfirmModal
+          open={confirmOpen}
+          title="Delete Process"
+          message={(
+            <div>
+              <p>Are you sure you want to delete this process?</p>
+              <ul style={{ marginTop: 8 }}>
+                <li><strong>Code:</strong> {selected?.process_code}</li>
+                <li><strong>Name:</strong> {selected?.process_name}</li>
+                <li><strong>Company:</strong> {companiesMap[String(selected?.company_id)] || '-'}</li>
+              </ul>
+            </div>
           )}
-        </div>
+          confirmLabel={deleting ? 'Deleting...' : 'Delete'}
+          cancelLabel="Cancel"
+          onConfirm={confirmDelete}
+          onCancel={closeDelete}
+          busy={deleting}
+        />
       </div>
     </div>
   );

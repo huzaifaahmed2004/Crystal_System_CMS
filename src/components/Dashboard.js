@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import MainLayout from './layout/MainLayout';
 import DashboardPage from '../pages/DashboardPage';
 import ProcessManagementPage from '../pages/ProcessManagementPage';
+import ProcessViewPage from '../pages/ProcessViewPage';
+import ProcessCreatePage from '../pages/ProcessCreatePage';
+import ProcessEditPage from '../pages/ProcessEditPage';
 import TaskManagementPage from '../pages/TaskManagementPage';
 import TaskListTablePage from '../pages/TaskListTablePage';
 import TaskCreatePage from '../pages/TaskCreatePage';
@@ -85,6 +88,12 @@ const Dashboard = ({ user, onLogout }) => {
         return <DashboardPage />;
       case 'process-management':
         return <ProcessManagementPage />;
+      case 'process-view':
+        return <ProcessViewPage />;
+      case 'process-create':
+        return <ProcessCreatePage />;
+      case 'process-edit':
+        return <ProcessEditPage />;
       case 'task-management':
         return <TaskListTablePage />;
       case 'task-create':
