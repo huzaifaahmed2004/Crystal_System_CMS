@@ -27,11 +27,26 @@ const RichTextEditor = ({ label = 'Description', value, onChange, placeholder = 
     onChange?.(editorRef.current?.innerHTML || '');
   };
 
+  const baseAreaStyle = {
+    border: '1px solid #ddd',
+    padding: 8,
+    minHeight: height,
+    borderRadius: 6,
+    width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+    whiteSpace: 'pre-wrap',
+  };
+
   return (
     <div className="form-group full-width">
       {label && <label>{label}</label>}
       {!readOnly && (
-        <div className="rte-toolbar" style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+        <div className="rte-toolbar" style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button type="button" className="secondary-btn sm" onClick={() => exec('bold')}>B</button>
           <button type="button" className="secondary-btn sm" onClick={() => exec('italic')}>I</button>
           <button type="button" className="secondary-btn sm" onClick={() => exec('underline')}>U</button>
@@ -50,12 +65,12 @@ const RichTextEditor = ({ label = 'Description', value, onChange, placeholder = 
         </div>
       )}
       {readOnly ? (
-        <div className="text-area" style={{ border: '1px solid #ddd', padding: 8, minHeight: height, borderRadius: 6 }}
+        <div className="text-area" style={baseAreaStyle}
           dangerouslySetInnerHTML={{ __html: value || '' }} />
       ) : showCode ? (
         <textarea
           className="text-area"
-          style={{ width: '100%', height }}
+          style={{ ...baseAreaStyle, height }}
           value={value || ''}
           onChange={(e) => onChange?.(e.target.value)}
         />
@@ -63,7 +78,7 @@ const RichTextEditor = ({ label = 'Description', value, onChange, placeholder = 
         <div
           ref={editorRef}
           className="text-area"
-          style={{ border: '1px solid #ddd', padding: 8, minHeight: height, borderRadius: 6 }}
+          style={baseAreaStyle}
           contentEditable
           placeholder={placeholder}
           onInput={handleInput}
