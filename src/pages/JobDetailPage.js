@@ -40,7 +40,13 @@ const JobDetailPage = () => {
 
   const goBack = () => {
     try { localStorage.removeItem('activeJobId'); } catch {}
-    setActiveSection('job-management');
+    let returnTo = null;
+    try { returnTo = localStorage.getItem('jobReturnTo'); localStorage.removeItem('jobReturnTo'); } catch {}
+    if (returnTo === 'task-detail') {
+      setActiveSection('task-detail');
+    } else {
+      setActiveSection('job-management');
+    }
   };
 
   const companyName = useMemo(() => data?.company?.name || data?.company_name || '-', [data]);

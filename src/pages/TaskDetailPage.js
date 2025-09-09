@@ -10,7 +10,7 @@ import SkillTable from '../components/ui/SkillTable';
 import { LEVELS } from '../components/ui/levels';
 
 const TaskDetailPage = () => {
-  const { setActiveSection } = useAppContext();
+  const { setActiveSection, setJobId } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -61,6 +61,10 @@ const TaskDetailPage = () => {
     return arr.map(jt => jt.job).filter(Boolean);
   }, [data]);
 
+  const defaultTab = React.useMemo(() => {
+    try { return localStorage.getItem('taskDetailsActiveTab') || 'basic'; } catch { return 'basic'; }
+  }, []);
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -90,7 +94,7 @@ const TaskDetailPage = () => {
           <div className="no-results">Task not found</div>
         ) : (
           <SideTabs
-            defaultActiveId="basic"
+            defaultActiveId={defaultTab}
             tabs={[
               {
                 id: 'basic',
@@ -162,7 +166,7 @@ const TaskDetailPage = () => {
                           <div className="cell actions" style={{ textAlign: 'right' }}>
                             <button
                               className="secondary-btn sm"
-                              onClick={() => { try { localStorage.setItem('activeJobId', String(j.job_id)); } catch {}; setActiveSection('job-detail'); }}
+                              onClick={() => { try { localStorage.setItem('activeJobId', String(j.job_id)); localStorage.setItem('jobReturnTo', 'task-detail'); localStorage.setItem('taskDetailsActiveTab', 'jobs'); } catch {}; try { setJobId(String(j.job_id)); } catch {}; setActiveSection('job-detail'); }}
                             >
                               View
                             </button>
