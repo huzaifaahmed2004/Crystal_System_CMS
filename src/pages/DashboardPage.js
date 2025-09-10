@@ -1,54 +1,62 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getCompaniesWithRelations } from '../services/companyService';
+import { getProcessesWithRelations } from '../services/processService';
 
 const DashboardPage = () => {
-  // Dummy data for the dashboard widgets
-  const systemStats = {
-    functions: 24,
-    jobs: 12,
-    tasks: 156,
-    processes: 8
-  };
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({ companies: 0, processes: 0, tasks: 0, jobs: 0 });
 
-  const pendingAIProcesses = [
-    {
-      id: 1,
-      name: "Automated Data Validation Process",
-      type: "Data Processing",
-      createdAt: "2024-01-15",
-      confidence: 95
-    },
-    {
-      id: 2,
-      name: "Customer Onboarding Workflow",
-      type: "Business Process",
-      createdAt: "2024-01-14",
-      confidence: 88
-    },
-    {
-      id: 3,
-      name: "Inventory Management Optimization",
-      type: "System Process",
-      createdAt: "2024-01-13",
-      confidence: 92
-    }
-  ];
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [companies, processes] = await Promise.all([
+          getCompaniesWithRelations(),
+          getProcessesWithRelations()
+        ]);
 
-  const handleApprove = (processId) => {
-    alert(`Process ${processId} approved!`);
-  };
+        if (!mounted) return;
 
-  const handleReject = (processId) => {
-    alert(`Process ${processId} rejected!`);
-  };
+        const companiesCount = Array.isArray(companies) ? companies.length : 0;
+        const processesList = Array.isArray(processes) ? processes : [];
+        let tasksCount = 0;
+        const jobIds = new Set();
+        processesList.forEach(p => {
+          if (Array.isArray(p?.process_tasks)) {
+            tasksCount += p.process_tasks.length;
+            p.process_tasks.forEach(pt => {
+              const jobs = pt?.task?.jobTasks || [];
+              jobs.forEach(jt => { if (jt?.job?.job_id) jobIds.add(jt.job.job_id); });
+            });
+          }
+        });
+
+        setStats({ companies: companiesCount, processes: processesList.length, tasks: tasksCount, jobs: jobIds.size });
+      } catch (e) {
+        if (mounted) setError('Failed to load dashboard data');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <div className="dashboard-content-area">
       <div className="dashboard-header-section">
         <h2 className="dashboard-title">Dashboard Overview</h2>
-        <p className="dashboard-subtitle">Quick overview of system stats, pending approvals, and optimization suggestions</p>
+        <p className="dashboard-subtitle">Quick overview of key CMS metrics</p>
       </div>
 
-      {/* System Stats Widgets */}
+      {/* System Stats Widgets (real data) */}
+      {loading && (
+        <div style={{ padding: '0.75rem', color: '#64748b' }}>Loading dashboard…</div>
+      )}
+      {error && (
+        <div style={{ padding: '0.75rem', color: '#b91c1c' }}>{error}</div>
+      )}
+      {!loading && !error && (
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon" aria-hidden="true">
@@ -57,8 +65,8 @@ const DashboardPage = () => {
             </svg>
           </div>
           <div className="stat-content">
-            <h3 className="stat-number">{systemStats.functions}</h3>
-            <p className="stat-label">Functions</p>
+            <h3 className="stat-number">{stats.companies}</h3>
+            <p className="stat-label">Companies</p>
           </div>
         </div>
         
@@ -69,8 +77,8 @@ const DashboardPage = () => {
             </svg>
           </div>
           <div className="stat-content">
-            <h3 className="stat-number">{systemStats.jobs}</h3>
-            <p className="stat-label">Jobs</p>
+            <h3 className="stat-number">{stats.processes}</h3>
+            <p className="stat-label">Processes</p>
           </div>
         </div>
         
@@ -81,7 +89,7 @@ const DashboardPage = () => {
             </svg>
           </div>
           <div className="stat-content">
-            <h3 className="stat-number">{systemStats.tasks}</h3>
+            <h3 className="stat-number">{stats.tasks}</h3>
             <p className="stat-label">Tasks</p>
           </div>
         </div>
@@ -93,79 +101,12 @@ const DashboardPage = () => {
             </svg>
           </div>
           <div className="stat-content">
-            <h3 className="stat-number">{systemStats.processes}</h3>
-            <p className="stat-label">Processes</p>
+            <h3 className="stat-number">{stats.jobs}</h3>
+            <p className="stat-label">Jobs</p>
           </div>
         </div>
       </div>
-
-      {/* Pending AI Processes Section */}
-      <div className="pending-processes-section">
-        <h3 className="section-title">Pending AI-Generated Processes</h3>
-        <div className="processes-list">
-          {pendingAIProcesses.map((process) => (
-            <div key={process.id} className="process-card">
-              <div className="process-info">
-                <h4 className="process-name">{process.name}</h4>
-                <div className="process-meta">
-                  <span className="process-type">{process.type}</span>
-                  <span className="process-date">Created: {process.createdAt}</span>
-                  <span className="process-confidence">Confidence: {process.confidence}%</span>
-                </div>
-              </div>
-              <div className="process-actions">
-                <button 
-                  className="approve-btn"
-                  onClick={() => handleApprove(process.id)}
-                >
-                  Approve
-                </button>
-                <button 
-                  className="reject-btn"
-                  onClick={() => handleReject(process.id)}
-                >
-                  <span aria-hidden="true" style={{ display: 'inline-flex', marginRight: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                  </span>
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Optimization Suggestions */}
-      <div className="optimization-section">
-        <h3 className="section-title">Optimization Suggestions</h3>
-        <div className="suggestions-list">
-          <div className="suggestion-card">
-            <div className="suggestion-icon" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2a7 7 0 00-4 12.74V18a2 2 0 002 2h4a2 2 0 002-2v-3.26A7 7 0 0012 2zM9 22h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div className="suggestion-content">
-              <h4>Process Automation Opportunity</h4>
-              <p>3 manual tasks could be automated to save 2.5 hours daily</p>
-            </div>
-          </div>
-          <div className="suggestion-card">
-            <div className="suggestion-icon" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M3 3v18h18" stroke="currentColor" strokeWidth="2"/>
-                <path d="M7 15l4-4 3 3 5-5" stroke="currentColor" strokeWidth="2" fill="none"/>
-              </svg>
-            </div>
-            <div className="suggestion-content">
-              <h4>Performance Optimization</h4>
-              <p>Database queries can be optimized to improve response time by 40%</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
