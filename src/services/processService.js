@@ -4,6 +4,16 @@ export async function getProcesses() {
   return api.get('/process');
 }
 
+export async function getProcessesWithRelations() {
+  try {
+    const data = await api.get('/process/with-relations');
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('Failed to load /process/with-relations', e);
+    return [];
+  }
+}
+
 export async function updateProcess(id, payload) {
   if (id == null) throw new Error('Process id is required');
   const body = {

@@ -1,0 +1,152 @@
+/* What-if Analysis page styles aligned with CMS theme */
+.page-content.whatif .metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.page-content.whatif .metric {
+  background: #ffffff;
+  border-left: 4px solid #4f46e5;
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+}
+.page-content.whatif .metric-label {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+.page-content.whatif .metric-value {
+  font-weight: 700;
+  color: #111827;
+}
+.page-content.whatif .tabbar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 12px;
+}
+.page-content.whatif .tab-btn {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+.page-content.whatif .tab-btn:hover { color: #374151; }
+.page-content.whatif .tab-btn.active {
+  color: #111827;
+  border-bottom-color: #4f46e5;
+}
+
+/* Tab panels */
+.page-content.whatif .tab-content { display: none; }
+.page-content.whatif .tab-content.active { display: block; }
+.page-content.whatif .tab-content { padding-top: 8px; }
+.page-content.whatif .controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+}
+.page-content.whatif .wif-control-group {
+  background: #ffffff;
+  border-left: 3px solid #4f46e5;
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+}
+.page-content.whatif .wif-control-group h4 {
+  margin: 0 0 8px 0;
+  font-weight: 700;
+  color: #111827;
+}
+.page-content.whatif .impact-display {
+  background: #f0f8ff;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.page-content.whatif .impact-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+.page-content.whatif .impact-value {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+/* Inputs & sliders */
+.page-content.whatif .input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.page-content.whatif .slider-group { margin-bottom: 10px; }
+.page-content.whatif .slider-group label { display: block; font-size: 13px; color: #374151; margin-bottom: 6px; }
+.page-content.whatif .slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  outline: none;
+}
+.page-content.whatif .slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.page-content.whatif .slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+
+/* Roles table */
+.page-content.whatif .roles-table { margin-top: 8px; }
+.page-content.whatif .roles-table-header {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.page-content.whatif .roles-table-body.as-table { display: grid; gap: 6px; }
+.page-content.whatif .roles-table-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-left: 3px solid #4f46e5;
+  background: #ffffff;
+  border-radius: 8px;
+}
+.page-content.whatif .roles-table-row.total { border-left-color: #10b981; }
+.page-content.whatif .roles-table .cell { color: #374151; }
+
+/* Comparison styles */
+.page-content.whatif .difference-positive { color: #10b981; font-weight: 700; }
+.page-content.whatif .difference-negative { color: #ef4444; font-weight: 700; }
+
+.hidden { display: none; }

@@ -66,6 +66,27 @@ export async function deleteCompaniesBulk(ids = []) {
   await Promise.all(ids.map((i) => deleteCompany(i)));
 }
 
+// Get companies with nested relations (people, buildings -> floors -> rooms)
+export async function getCompaniesWithRelations() {
+  try {
+    const data = await api.get('/company/with-relations');
+    if (!Array.isArray(data)) return [];
+    return data.map((dto) => ({
+      company_id: dto?.company_id ?? dto?.id,
+      companyCode: dto?.companyCode ?? dto?.code ?? dto?.company_code ?? '',
+      name: dto?.name ?? '',
+      created_by: dto?.created_by ?? dto?.createdBy ?? null,
+      created_at: dto?.created_at ?? dto?.createdAt ?? null,
+      updated_at: dto?.updated_at ?? dto?.updatedAt ?? null,
+      people: Array.isArray(dto?.people) ? dto.people : [],
+      buildings: Array.isArray(dto?.buildings) ? dto.buildings : [],
+    }));
+  } catch (e) {
+    console.error('Failed to load /company/with-relations', e);
+    return [];
+  }
+}
+
 // Optional: legacy overview support if stats endpoint exists
 export async function getCompanyStats(companyId) {
   try {

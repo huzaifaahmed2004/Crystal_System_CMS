@@ -5,6 +5,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
   const [openCompany, setOpenCompany] = useState(false);
   const [openActivities, setOpenActivities] = useState(false);
   const [openOrganization, setOpenOrganization] = useState(false);
+  const [openAI, setOpenAI] = useState(false);
 
   // Keep submenu open when a related section is active
   useEffect(() => {
@@ -19,6 +20,9 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     }
     if (['job-management', 'function-management', 'people-management'].includes(activeSection)) {
       setOpenOrganization(true);
+    }
+    if (['what-if-analysis', 'ai-processes'].includes(activeSection)) {
+      setOpenAI(true);
     }
   }, [activeSection]);
   const icons = {
@@ -71,6 +75,11 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
         <path d="M12 2a5 5 0 015 5v1h1a4 4 0 110 8h-1v1a5 5 0 11-10 0v-1H6a4 4 0 110-8h1V7a5 5 0 015-5z" fill="currentColor"/>
       </svg>
     ),
+    'ai-agents': (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2a5 5 0 015 5v1h1a4 4 0 110 8h-1v1a5 5 0 11-10 0v-1H6a4 4 0 110-8h1V7a5 5 0 015-5z" fill="currentColor"/>
+      </svg>
+    ),
     'user-access': (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 5.5V22h18v-2.5C21 16.5 17 14 12 14z" fill="currentColor"/>
@@ -84,7 +93,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     { id: 'activities', label: 'Activities' },
   
     { id: 'company', label: 'Structure' },
-    { id: 'ai-processes', label: 'AI-Generated Processes' },
+    { id: 'ai-agents', label: 'AI Agents' },
     { id: 'user-access', label: 'User & Access Control' },
     // layout-management removed
   ];
@@ -266,6 +275,34 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
                           onClick={() => setActiveSection('people-management')}
                         >
                           People
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </>
+              ) : item.id === 'ai-agents' ? (
+                <>
+                  <button
+                    className={`nav-button ${(['what-if-analysis'].includes(activeSection)) ? 'active' : ''}`}
+                    onClick={() => setOpenAI((v) => !v)}
+                    title={collapsed ? item.label : ''}
+                  >
+                    <span className="nav-icon" aria-hidden="true">{icons[item.id]}</span>
+                    {!collapsed && (
+                      <span className="nav-label" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        {item.label}
+                        <span className={`submenu-caret ${openAI ? 'open' : ''}`} aria-hidden="true">▾</span>
+                      </span>
+                    )}
+                  </button>
+                  {!collapsed && openAI && (
+                    <ul className="nav-sublist" style={{ marginTop: 4, marginLeft: 36 }}>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'what-if-analysis' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('what-if-analysis')}
+                        >
+                          What-if Analysis
                         </button>
                       </li>
                     </ul>
