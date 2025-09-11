@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import '../styles/what-if-analysis.css';
-import { optimizeProcess as svcOptimizeProcess, optimizeCustom as svcOptimizeCustom } from '../services/whatIfService';
+import { optimizeProcess as svcOptimizeProcess } from '../services/whatIfService';
 import { getProcessesWithRelations } from '../services/processService';
 
 // Lightweight integration of the existing What-If Dashboard logic.
@@ -15,21 +15,26 @@ class WhatIfDashboard {
     this.projectData = null;
     this.constraints = null;
     this.renderedTabs = { resources: false, tasks: false };
+    this.processLabelToId = new Map();
+    // Guards for dev StrictMode double-invocation
+    this._mounted = false;
+    this._processesLoading = false;
+    this._processesLoaded = false;
   }
 
   mount() {
+    // Prevent duplicate mounts (React StrictMode in dev may invoke effects twice)
+    if (this.root?.dataset?.wifMounted === '1') return;
+    this.root.dataset.wifMounted = '1';
+
     // bind listeners within root scope
-    this.q('#processDropdown')?.addEventListener('change', this.onProcessSelect.bind(this));
+    this.q('#processDropdown')?.addEventListener('input', this.onProcessSelect.bind(this));
     this.q('#optimizeBtn')?.addEventListener('click', this.optimizeProcess.bind(this));
 
     this.qAll('.tab-btn').forEach(btn => btn.addEventListener('click', this.switchTab.bind(this)));
     ['timePriority','costPriority','qualityPriority'].forEach(id => this.q('#' + id)?.addEventListener('input', this.updatePriorities.bind(this)));
-    this.q('#updateScenarioBtn')?.addEventListener('click', this.updateScenario.bind(this));
     this.q('#enableComparisonBtn')?.addEventListener('click', this.enableComparison.bind(this));
     this.q('#resetScenarioBtn')?.addEventListener('click', this.resetScenario.bind(this));
-
-    // Process search
-    this.q('#processSearch')?.addEventListener('input', this.filterProcesses.bind(this));
 
     // Load available processes from CMS API
     this.loadProcesses();
@@ -40,56 +45,66 @@ class WhatIfDashboard {
 
   async loadProcesses() {
     try {
-      const dropdown = this.q('#processDropdown');
-      if (!dropdown) return;
-      if (dropdown) dropdown.innerHTML = '<option value="">Loading processes...</option>';
+      if (this._processesLoaded || this._processesLoading) return;
+      this._processesLoading = true;
+      const input = this.q('#processDropdown');
+      const datalist = this.q('#processOptions');
+      if (!input || !datalist) return;
+      datalist.innerHTML = '';
       const processes = await getProcessesWithRelations();
       const list = Array.isArray(processes) ? processes : [];
-      dropdown.innerHTML = '<option value="">Select a process to optimize...</option>';
-      list.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.process_id || p.id;
-        opt.textContent = `${p.process_name || p.name} (${p.company?.name || ''})`;
-        if (p && Object.prototype.hasOwnProperty.call(p, 'process_tasks')) {
-          try { opt.dataset.processData = JSON.stringify(p); } catch {}
-        }
-        dropdown.appendChild(opt);
-      });
       this.allProcesses = list;
+      this.processLabelToId = new Map();
+      const seen = new Set();
+      list.forEach(p => {
+        const label = `${p.process_name || p.name} (${p.company?.name || ''})`;
+        const id = p.process_id || p.id;
+        if (!seen.has(label)) {
+          seen.add(label);
+          this.processLabelToId.set(label, id);
+          const opt = document.createElement('option');
+          opt.value = label;
+          datalist.appendChild(opt);
+        }
+      });
+      // Reset input placeholder
+      input.placeholder = 'Search and select a process...';
+      input.setAttribute('autocomplete', 'off');
+      const btn = this.q('#optimizeBtn');
+      if (btn) btn.disabled = true;
+      this._processesLoaded = true;
     } catch (e) {
       console.error('Failed to load processes for What-if Analysis:', e);
-      const dropdown = this.q('#processDropdown');
-      if (dropdown) dropdown.innerHTML = '<option value="">Failed to load processes</option>';
+      const datalist = this.q('#processOptions');
+      if (datalist) datalist.innerHTML = '';
       const btn = this.q('#optimizeBtn');
       if (btn) btn.disabled = true;
     }
+    finally {
+      this._processesLoading = false;
+    }
   }
 
-  filterProcesses(e) {
-    const term = (e?.target?.value || '').toLowerCase();
-    const dropdown = this.q('#processDropdown');
-    if (!dropdown || !Array.isArray(this.allProcesses)) return;
-    dropdown.innerHTML = '<option value="">Select a process to optimize...</option>';
-    this.allProcesses
-      .filter(p => `${p.process_name || p.name} ${p.company?.name || ''}`.toLowerCase().includes(term))
-      .forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.process_id || p.id;
-        opt.textContent = `${p.process_name || p.name} (${p.company?.name || ''})`;
-        dropdown.appendChild(opt);
-      });
+  filterProcesses(e) { /* no-op with datalist; kept for compatibility */ }
+
+  getSelectedProcessId() {
+    const input = this.q('#processDropdown');
+    const v = input?.value?.trim();
+    if (!v) return null;
+    if (this.processLabelToId && this.processLabelToId.has(v)) return this.processLabelToId.get(v);
+    const fromId = (this.allProcesses || []).find(p => String(p.process_id || p.id) === v);
+    return fromId ? (fromId.process_id || fromId.id) : null;
   }
 
   onProcessSelect(e) {
-    const v = e.target.value;
     const btn = this.q('#optimizeBtn');
-    if (btn) btn.disabled = !v;
+    const pid = this.getSelectedProcessId();
+    if (btn) btn.disabled = !pid;
   }
 
   async optimizeProcess() {
-    const dd = this.q('#processDropdown');
-    if (!dd || !dd.value) return;
-    const processId = dd.value; // backend expects a CMS numeric ID
+    const processId = this.getSelectedProcessId();
+    if (!processId) return; // backend expects a CMS numeric ID
 
     this.q('#loadingSpinner')?.classList.remove('hidden');
     const btn = this.q('#optimizeBtn');
@@ -163,6 +178,7 @@ class WhatIfDashboard {
       this.q('#bestScenario')?.classList.remove('hidden');
       this.q('#constraintAdjustment')?.classList.remove('hidden');
       this.q('#comparisonSection')?.classList.remove('hidden');
+      this.q('#impactPreviewSection')?.classList.remove('hidden');
     } catch (err) {
       console.error(err);
       alert('Error optimizing process. Please try again.');
@@ -220,19 +236,21 @@ class WhatIfDashboard {
 
     let totalHours = 0;
     let totalCost = 0;
-
-    scenario.scenario.assignments.forEach(assignment => {
-      const task = this.projectData.tasks.find(t => t.id === assignment.task_id) || {
+    const assignments = Array.isArray(scenario?.scenario?.assignments) ? scenario.scenario.assignments : [];
+    const tasksArr = Array.isArray(this.projectData?.tasks) ? this.projectData.tasks : [];
+    const resourcesArr = Array.isArray(this.projectData?.resources) ? this.projectData.resources : [];
+    assignments.forEach(assignment => {
+      const task = tasksArr.find(t => t.id === assignment.task_id) || {
         id: assignment.task_id,
         name: this.taskNames?.[assignment.task_id] || assignment.task_id
       };
-      const resource = this.projectData.resources.find(r => r.id === assignment.resource_id) || {
+      const resource = resourcesArr.find(r => r.id === assignment.resource_id) || {
         id: assignment.resource_id,
         name: this.resourceNames?.[assignment.resource_id] || assignment.resource_id,
         hourly_rate: 85
       };
-      const hours = assignment.hours_allocated;
-      const cost = hours * resource.hourly_rate;
+      const hours = Number(assignment?.hours_allocated || 0);
+      const cost = hours * Number(resource.hourly_rate || 85);
       totalHours += hours;
       totalCost += cost;
       const row = document.createElement('div');
@@ -297,14 +315,10 @@ class WhatIfDashboard {
           <label>Max Hours/Day: <span id="hours-${resource.id}">${resource.max_hours_per_day}</span></label>
           <input type="range" id="hoursSlider-${resource.id}" min="4" max="12" value="${resource.max_hours_per_day}" class="slider" data-resource="${resource.id}" data-type="hours">
         </div>
-        <div class="checkbox-group">
-          <label><input type="checkbox" id="available-${resource.id}" checked data-resource="${resource.id}" data-type="available"> Available for assignment</label>
-        </div>
       `;
       container.appendChild(group);
       group.querySelector(`#rateSlider-${resource.id}`)?.addEventListener('input', this.onConstraintChange.bind(this));
       group.querySelector(`#hoursSlider-${resource.id}`)?.addEventListener('input', this.onConstraintChange.bind(this));
-      group.querySelector(`#available-${resource.id}`)?.addEventListener('change', this.onConstraintChange.bind(this));
     });
   }
 
@@ -428,15 +442,10 @@ class WhatIfDashboard {
     let totalNewHours = 0;
     this.projectData.resources.forEach(resource => {
       const hoursSlider = this.q(`#hoursSlider-${resource.id}`);
-      const availableCheckbox = this.q(`#available-${resource.id}`);
-      const isAvailable = availableCheckbox ? availableCheckbox.checked : true;
-      
-      if (isAvailable) {
-        const originalHours = resource.max_hours_per_day || 8;
-        const newHours = hoursSlider ? parseFloat(hoursSlider.value) : originalHours;
-        totalOriginalHours += originalHours;
-        totalNewHours += newHours;
-      }
+      const originalHours = resource.max_hours_per_day || 8;
+      const newHours = hoursSlider ? parseFloat(hoursSlider.value) : originalHours;
+      totalOriginalHours += originalHours;
+      totalNewHours += newHours;
     });
     
     if (totalNewHours > 0 && totalOriginalHours > 0) {
@@ -455,10 +464,7 @@ class WhatIfDashboard {
     let resourceCount = 0;
     this.projectData.resources.forEach(resource => {
       const rateSlider = this.q(`#rateSlider-${resource.id}`);
-      const availableCheckbox = this.q(`#available-${resource.id}`);
-      const isAvailable = availableCheckbox ? availableCheckbox.checked : true;
-      
-      if (isAvailable && rateSlider) {
+      if (rateSlider) {
         const originalRate = resource.hourly_rate || 85;
         const newRate = parseFloat(rateSlider.value);
         rateMultiplier += (newRate / originalRate - 1);
@@ -499,6 +505,28 @@ class WhatIfDashboard {
       estimatedCost *= avgPriorityMultiplier;
     }
     
+    // === APPLY PREFERENCES (heuristic) ===
+    // Interpret sliders as weights that tilt the tradeoff between time and cost
+    // Sum is maintained near 1 in updatePriorities(), but we normalize defensively
+    let pTime = Number(this.q('#timePriority')?.value || 33) / 100;
+    let pCost = Number(this.q('#costPriority')?.value || 33) / 100;
+    let pQual = Number(this.q('#qualityPriority')?.value || 34) / 100;
+    const pSum = pTime + pCost + pQual;
+    if (pSum > 0) { pTime /= pSum; pCost /= pSum; pQual /= pSum; }
+    
+    // Time vs Cost tilt: more time priority reduces duration but may increase cost; more cost priority does the opposite.
+    const tilt = pTime - pCost; // [-1..1]
+    const timeAdj = 1 - 0.2 * tilt; // up to -20% duration for max time priority
+    const costAdj = 1 + 0.2 * tilt; // up to +20% cost for max time priority
+    
+    // Quality tends to increase both time and cost a bit
+    const qualTimeAdj = 1 + 0.05 * pQual;  // up to +5%
+    const qualCostAdj = 1 + 0.10 * pQual;  // up to +10%
+    
+    // Apply adjustments with lower bound protection
+    estimatedDurationMinutes = Math.max(1, estimatedDurationMinutes * timeAdj * qualTimeAdj);
+    estimatedCost = Math.max(0, estimatedCost * costAdj * qualCostAdj);
+    
     // Update display
     const impactDurationEl = this.q('#impactDuration');
     const impactCostEl = this.q('#impactCost');
@@ -529,56 +557,46 @@ class WhatIfDashboard {
     return total;
   }
 
+  // Helper: parse a duration label like "120 minutes", "2.5 hours", or "0.1 days" into minutes
+  parseDurationTextToMinutes(text) {
+    if (!text || typeof text !== 'string') return NaN;
+    const lower = text.toLowerCase();
+    const number = parseFloat(text.replace(/[^0-9.\-]/g, ''));
+    if (!Number.isFinite(number)) return NaN;
+    if (lower.includes('minute')) return number;
+    if (lower.includes('hour')) return number * 60;
+    if (lower.includes('day')) return number * 24 * 60; // 24 hours/day * 60 min/hour
+    return number; // assume minutes if unit absent
+  }
+
   updateImpactPreviewFromScenario(metrics) {
-    // Mirror frontend: uses 24 hours per day here
-    this.q('#impactDuration').textContent = `${(metrics.total_time_days * 24).toFixed(1)} hours`;
-    this.q('#impactCost').textContent = `$${metrics.total_cost.toLocaleString()}`;
+    // Convert days to minutes for consistency with updateImpactPreview() output
+    const durationMinutes = (metrics.total_time_days * 8 * 60); // 8 hours/day * 60 min/hour
+    this.q('#impactDuration').textContent = `${Math.round(durationMinutes)} minutes`;
+    this.q('#impactCost').textContent = `$${Math.round(metrics.total_cost).toLocaleString()}`;
   }
 
   async updateScenario() {
-    const durText = this.q('#impactDuration')?.textContent || '0 days';
+    const durText = this.q('#impactDuration')?.textContent || '0 minutes';
     const costText = this.q('#impactCost')?.textContent || '$0';
-    // durText is in hours here; convert back to days for metrics alignment
-    const estimatedDuration = parseFloat(durText.replace(' hours','')) / 24;
+    // durText is in minutes now; convert back to days for metrics alignment
+    const estimatedDuration = parseFloat(durText.replace(' minutes','')) / (8 * 60);
     const estimatedCost = parseFloat(costText.replace('$','').replace(/,/g,''));
-    const constraints = this.collectConstraints();
-    try {
-      const pid = this.q('#processDropdown')?.value;
-      const result = await svcOptimizeCustom(pid, constraints);
-      // Unify result shapes similar to optimizeProcess
-      let nextScenario = null;
-      if (result?.scenario && result?.metrics) {
-        nextScenario = { scenario: result.scenario, metrics: result.metrics };
-      } else if (result?.best_scenario) {
-        nextScenario = result.best_scenario;
-      } else if (Array.isArray(result?.scenarios)) {
-        const pickScore = (s) => {
-          const q = Number(s.quality_score || s.metrics?.quality_score || 0);
-          const t = Number(s.total_duration_days || s.metrics?.total_time_days || 0) || 1;
-          const c = Number(s.total_cost || s.metrics?.total_cost || 1) || 1;
-          return q * 0.4 + (1 / t) * 0.3 + (1 / c) * 0.3;
-        };
-        const top = [...result.scenarios].sort((a,b) => pickScore(b)-pickScore(a))[0];
-        nextScenario = {
-          scenario: { assignments: top.assignments || [] },
-          metrics: {
-            total_time_days: Number(top.total_duration_days || top.metrics?.total_time_days || estimatedDuration),
-            total_cost: Number(top.total_cost || top.metrics?.total_cost || estimatedCost),
-            quality_score: Number(top.quality_score || top.metrics?.quality_score || 0),
-            resource_utilization: Number(top.resource_utilization || top.metrics?.resource_utilization || 0.85),
-          }
-        };
+
+    const baseScenario = this.currentScenario || this.originalScenario;
+    if (!baseScenario) { console.warn('No scenario available to update'); return; }
+
+    const nextScenario = {
+      scenario: baseScenario.scenario || { assignments: [] },
+      metrics: {
+        total_time_days: Number.isFinite(estimatedDuration) ? estimatedDuration : (baseScenario.metrics?.total_time_days || 0),
+        total_cost: Number.isFinite(estimatedCost) ? estimatedCost : (baseScenario.metrics?.total_cost || 0),
+        quality_score: Number(baseScenario.metrics?.quality_score || 0),
+        resource_utilization: Number(baseScenario.metrics?.resource_utilization || 0.85),
       }
-      if (!nextScenario) throw new Error('Unexpected response from optimize/custom');
-      // Overwrite with estimated duration/cost to reflect preview
-      nextScenario.metrics.total_time_days = estimatedDuration;
-      nextScenario.metrics.total_cost = estimatedCost;
-      this.currentScenario = nextScenario;
-      this.displayBestScenario(nextScenario);
-    } catch (e) {
-      console.error(e);
-      alert('Error updating scenario.');
-    }
+    };
+    this.currentScenario = nextScenario;
+    this.displayBestScenario(nextScenario);
   }
 
   collectConstraints() {
@@ -588,11 +606,20 @@ class WhatIfDashboard {
         constraints.resources[r.id] = { hourly_rate: Number(this.q(`#rateSlider-${r.id}`)?.value || r.hourly_rate), max_hours_per_day: Number(this.q(`#hoursSlider-${r.id}`)?.value || r.max_hours_per_day), available: !!this.q(`#available-${r.id}`)?.checked };
       });
       this.projectData.tasks.forEach(t => {
-        constraints.tasks[t.id] = { duration_hours: Number(this.q(`#durationSlider-${t.id}`)?.value || t.duration_hours), priority: Number(this.q(`#prioritySlider-${t.id}`)?.value || 3), allow_parallel: !!this.q(`#parallel-${t.id}`)?.checked };
+        // Our UI slider is in MINUTES; backend expects HOURS
+        const sliderVal = this.q(`#durationSlider-${t.id}`)?.value;
+        const durationHours = sliderVal ? Number(sliderVal) / 60 : Number(t.duration_hours);
+        constraints.tasks[t.id] = { duration_hours: durationHours, priority: Number(this.q(`#prioritySlider-${t.id}`)?.value || 3), allow_parallel: !!this.q(`#parallel-${t.id}`)?.checked };
       });
     }
     return constraints;
   }
+
+  // Removed: optimizeWithFallback — custom optimize API calls disabled
+  // async optimizeWithFallback(constraints) {}
+
+  // Removed: normalizeToScenario — custom optimize API calls disabled
+  // normalizeToScenario() { return null; }
 
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab;
@@ -606,45 +633,30 @@ class WhatIfDashboard {
 
   enableComparison() {
     if (!this.bestScenarioBaseline) return;
-    
+
     const tbody = this.q('#comparisonBody');
     const wrapper = this.q('#comparisonTable');
     if (!tbody || !wrapper) return;
     tbody.innerHTML = '';
-    
+
     // Get current Impact Preview values (modified constraints)
     const impactDurationEl = this.q('#impactDuration');
     const impactCostEl = this.q('#impactCost');
-    
-    const currentDurationMinutes = impactDurationEl ? parseFloat(impactDurationEl.textContent.replace(' minutes', '')) : 0;
-    const currentCost = impactCostEl ? parseFloat(impactCostEl.textContent.replace('$', '').replace(/,/g, '')) : 0;
-    
-    // Convert current duration from minutes to days for comparison
-    const currentDurationDays = currentDurationMinutes / (8 * 60); // 8 hours * 60 minutes per day
-    
+    const currentDurationMinutes = impactDurationEl ? this.parseDurationTextToMinutes(impactDurationEl.textContent) : NaN;
+    const currentCost = impactCostEl ? parseFloat(impactCostEl.textContent.replace('$', '').replace(/,/g, '')) : NaN;
+
+    // Calculate quality score adjustment based on preferences
+    const pQual = Number(this.q('#qualityPriority')?.value || 34) / 100;
+    const baseQualityScore = this.bestScenarioBaseline.quality_score * 100;
+    const adjustedQualityScore = baseQualityScore * (1 + 0.1 * pQual); // Up to +10% for max quality priority
+
     const metrics = [
-      { 
-        label: 'Duration (days)', 
-        original: this.bestScenarioBaseline.total_time_days, 
-        current: currentDurationDays 
-      },
-      { 
-        label: 'Total Cost', 
-        original: this.bestScenarioBaseline.total_cost, 
-        current: currentCost 
-      },
-      { 
-        label: 'Quality Score', 
-        original: this.bestScenarioBaseline.quality_score * 100, 
-        current: this.bestScenarioBaseline.quality_score * 100 // Quality doesn't change in impact preview
-      },
-      { 
-        label: 'Resource Utilization', 
-        original: this.bestScenarioBaseline.resource_utilization * 100, 
-        current: this.bestScenarioBaseline.resource_utilization * 100 // Utilization doesn't change in impact preview
-      }
+      { label: 'Duration (minutes)', original: this.bestScenarioBaseline.total_time_days * 8 * 60, current: Number.isFinite(currentDurationMinutes) ? currentDurationMinutes : this.bestScenarioBaseline.total_time_days * 8 * 60 },
+      { label: 'Total Cost', original: this.bestScenarioBaseline.total_cost, current: Number.isFinite(currentCost) ? currentCost : this.bestScenarioBaseline.total_cost },
+      { label: 'Quality Score', original: baseQualityScore, current: adjustedQualityScore },
+      { label: 'Resource Utilization', original: (this.bestScenarioBaseline.resource_utilization || 0.85) * 100, current: (this.bestScenarioBaseline.resource_utilization || 0.85) * 100 }
     ];
-    
+
     metrics.forEach(m => {
       const diff = m.current - m.original;
       const pct = m.original !== 0 ? ((diff / m.original) * 100).toFixed(1) : '0.0';
@@ -653,8 +665,8 @@ class WhatIfDashboard {
       row.style.gridTemplateColumns = '2fr 1fr 1fr 1fr';
       row.innerHTML = `
         <div class="cell">${m.label}</div>
-        <div class="cell">${m.label.includes('Cost') ? '$' : ''}${m.original.toFixed(1)}${m.label.includes('Score') || m.label.includes('Utilization') ? '%' : ''}</div>
-        <div class="cell">${m.label.includes('Cost') ? '$' : ''}${m.current.toFixed(1)}${m.label.includes('Score') || m.label.includes('Utilization') ? '%' : ''}</div>
+        <div class="cell">${m.label.includes('Cost') ? '$' : ''}${(m.label.includes('Duration') ? m.original.toFixed(0) : m.original.toFixed(1))}${m.label.includes('Score') || m.label.includes('Utilization') ? '%' : ''}</div>
+        <div class="cell">${m.label.includes('Cost') ? '$' : ''}${(m.label.includes('Duration') ? m.current.toFixed(0) : m.current.toFixed(1))}${m.label.includes('Score') || m.label.includes('Utilization') ? '%' : ''}</div>
         <div class="cell ${diff >= 0 ? 'difference-positive' : 'difference-negative'}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)} (${pct}%)</div>`;
       tbody.appendChild(row);
     });
@@ -662,21 +674,45 @@ class WhatIfDashboard {
   }
 
   resetScenario() {
-    if (!this.originalScenario) return;
-    this.currentScenario = { ...this.originalScenario };
-    this.displayBestScenario(this.originalScenario);
-    this.updateImpactPreviewFromScenario(this.originalScenario.metrics);
-    // reset inputs
+    if (!this.originalScenario && !this.bestScenarioBaseline && !this.currentScenario) return;
+    // Build a safe scenario using original metrics and existing assignments (if any)
+    const orig = this.originalScenario?.metrics || this.bestScenarioBaseline || {};
+    const existingAssignments = Array.isArray(this.currentScenario?.scenario?.assignments)
+      ? this.currentScenario.scenario.assignments
+      : (Array.isArray(this.originalScenario?.scenario?.assignments) ? this.originalScenario.scenario.assignments : []);
+    const restored = {
+      scenario: { assignments: existingAssignments || [] },
+      metrics: {
+        total_time_days: Number(orig.total_time_days || orig.total_duration_days || 0),
+        total_cost: Number(orig.total_cost || 0),
+        quality_score: Number(orig.quality_score || 0),
+        resource_utilization: Number(orig.resource_utilization || 0.85),
+      }
+    };
+    this.currentScenario = restored;
+    this.displayBestScenario(restored);
+    this.updateImpactPreviewFromScenario(restored.metrics);
+    // Update Impact Preview to reflect the reset baseline (recalculate with default constraints)
+    this.updateImpactPreview();
+    // Reset ALL inputs to defaults
+    // 1. Reset preferences to defaults
+    const timePri = this.q('#timePriority'), costPri = this.q('#costPriority'), qualPri = this.q('#qualityPriority');
+    if (timePri) { timePri.value = 33; this.q('#timeValue').textContent = '33%'; }
+    if (costPri) { costPri.value = 33; this.q('#costValue').textContent = '33%'; }
+    if (qualPri) { qualPri.value = 34; this.q('#qualityValue').textContent = '34%'; }
+    
+    // 2. Reset resource constraints to original values
     if (this.projectData) {
       this.projectData.resources.forEach(r => {
-        const rate = this.q(`#rateSlider-${r.id}`), hrs = this.q(`#hoursSlider-${r.id}`), av = this.q(`#available-${r.id}`);
+        const rate = this.q(`#rateSlider-${r.id}`), hrs = this.q(`#hoursSlider-${r.id}`);
         if (rate) rate.value = r.hourly_rate;
         if (hrs) hrs.value = r.max_hours_per_day;
-        if (av) av.checked = true;
         const rateLabel = this.q(`#rate-${r.id}`), hrsLabel = this.q(`#hours-${r.id}`);
         if (rateLabel) rateLabel.textContent = r.hourly_rate;
         if (hrsLabel) hrsLabel.textContent = r.max_hours_per_day;
       });
+      
+      // 3. Reset task constraints to original values
       this.projectData.tasks.forEach(t => {
         const dur = this.q(`#durationSlider-${t.id}`), pri = this.q(`#prioritySlider-${t.id}`), par = this.q(`#parallel-${t.id}`);
         if (dur) { dur.value = t.duration_hours * 60; const lbl = this.q(`#duration-${t.id}`); if (lbl) lbl.textContent = t.duration_hours * 60; }
@@ -684,8 +720,36 @@ class WhatIfDashboard {
         if (par) par.checked = false;
       });
     }
-    const table = this.q('#comparisonTable');
-    if (table) table.classList.add('hidden');
+    // Rebuild comparison table with both sides equal to original
+    const tbody = this.q('#comparisonBody');
+    const wrapper = this.q('#comparisonTable');
+    if (tbody && wrapper && this.bestScenarioBaseline) {
+      tbody.innerHTML = '';
+      const baselineMinutes = Number(this.bestScenarioBaseline.total_time_days || 0) * 8 * 60;
+      const baselineCost = Number(this.bestScenarioBaseline.total_cost || 0);
+      const baselineQualityPct = Number(this.bestScenarioBaseline.quality_score || 0) * 100;
+      const baselineUtilPct = Number(this.bestScenarioBaseline.resource_utilization || 0) * 100;
+      const metrics = [
+        { label: 'Duration (minutes)', original: baselineMinutes, current: baselineMinutes },
+        { label: 'Total Cost', original: baselineCost, current: baselineCost },
+        { label: 'Quality Score', original: baselineQualityPct, current: baselineQualityPct },
+        { label: 'Resource Utilization', original: baselineUtilPct, current: baselineUtilPct },
+      ];
+      metrics.forEach(m => {
+        const diff = 0;
+        const pct = '0.0';
+        const row = document.createElement('div');
+        row.className = 'roles-table-row';
+        row.style.gridTemplateColumns = '2fr 1fr 1fr 1fr';
+        row.innerHTML = `
+          <div class="cell">${m.label}</div>
+          <div class="cell">${m.label.includes('Cost') ? '$' : ''}${(m.label.includes('Duration') ? m.original.toFixed(0) : m.original.toFixed(1))}${m.label.includes('Score') || m.label.includes('Utilization') ? '%' : ''}</div>
+          <div class="cell">${m.label.includes('Cost') ? '$' : ''}${(m.label.includes('Duration') ? m.current.toFixed(0) : m.current.toFixed(1))}${m.label.includes('Score') || m.label.includes('Utilization') ? '%' : ''}</div>
+          <div class="cell difference-positive">+0.0 (0.0%)</div>`;
+        tbody.appendChild(row);
+      });
+      wrapper.classList.remove('hidden');
+    }
   }
 }
 
@@ -718,10 +782,8 @@ const WhatIfAnalysisPage = () => {
           <div className="form-grid">
             <div className="form-group">
               <label>Process</label>
-              <input id="processSearch" type="text" placeholder="Search processes..." className="input" style={{ marginBottom: 8 }} />
-              <select id="processDropdown">
-                <option value="">Select a process to optimize...</option>
-              </select>
+              <input id="processDropdown" list="processOptions" placeholder="Search and select a process..." className="input" />
+              <datalist id="processOptions"></datalist>
             </div>
             <div className="form-group" style={{ alignSelf: 'end' }}>
               <button id="optimizeBtn" className="primary-btn" disabled>Optimize Process</button>
@@ -776,29 +838,33 @@ const WhatIfAnalysisPage = () => {
           </div>
           <div id="preferencesTab" className="tab-content">
             <div className="preference-controls">
-              <div className="slider-group">
-                <label>Time Priority</label>
-                <input type="range" id="timePriority" min="0" max="100" defaultValue="33" className="slider" />
-                <span id="timeValue">33%</span>
-              </div>
-              <div className="slider-group">
-                <label>Cost Priority</label>
-                <input type="range" id="costPriority" min="0" max="100" defaultValue="33" className="slider" />
-                <span id="costValue">33%</span>
-              </div>
-              <div className="slider-group">
-                <label>Quality Priority</label>
-                <input type="range" id="qualityPriority" min="0" max="100" defaultValue="34" className="slider" />
-                <span id="qualityValue">34%</span>
+              <div className="form-actions" style={{ marginTop: 8 }}>
+                <div className="sliders-row">
+                  <div className="slider-group">
+                    <label>Time Priority</label>
+                    <input type="range" id="timePriority" min="0" max="100" defaultValue="33" className="slider" />
+                    <span id="timeValue">33%</span>
+                  </div>
+                  <div className="slider-group">
+                    <label>Cost Priority</label>
+                    <input type="range" id="costPriority" min="0" max="100" defaultValue="33" className="slider" />
+                    <span id="costValue">33%</span>
+                  </div>
+                  <div className="slider-group">
+                    <label>Quality Priority</label>
+                    <input type="range" id="qualityPriority" min="0" max="100" defaultValue="34" className="slider" />
+                    <span id="qualityValue">34%</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <button id="updateScenarioBtn" className="primary-btn">Update Scenario</button>
           </div>
-          {/* Impact Preview outside of tabs */}
-          <div className="impact-display">
-            <div className="impact-item"><span>Estimated Duration:</span><span id="impactDuration" className="impact-value">-</span></div>
-            <div className="impact-item"><span>Estimated Cost:</span><span id="impactCost" className="impact-value">-</span></div>
-          </div>
+        </div>
+
+        {/* Impact Preview outside of tabs */}
+        <div className="impact-display hidden" id="impactPreviewSection">
+          <div className="impact-item"><span>Estimated Duration:</span><span id="impactDuration" className="impact-value">-</span></div>
+          <div className="impact-item"><span>Estimated Cost:</span><span id="impactCost" className="impact-value">-</span></div>
         </div>
 
         <div id="comparisonSection" className="role-card hidden">

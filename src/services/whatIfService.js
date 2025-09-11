@@ -27,3 +27,16 @@ export async function optimizeCustom(processRef, constraints) {
   };
   return api.post(endpoint, body);
 }
+
+// Optimize with custom constraints using raw constraint payload (no processRef).
+// Matches the legacy frontend implementation in /frontend/script.js
+export async function optimizeWithConstraints(constraints) {
+  const endpoint = `${WHATIF_API_BASE}/optimize/custom`;
+  return api.post(endpoint, constraints || {});
+}
+
+// Optimize with { constraints: <payload> } envelope (legacy alt shape)
+export async function optimizeWithConstraintsBody(constraints) {
+  const endpoint = `${WHATIF_API_BASE}/optimize/custom`;
+  return api.post(endpoint, { constraints: constraints || {} });
+}
