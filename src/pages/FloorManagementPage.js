@@ -10,12 +10,11 @@ const FloorManagementPage = () => {
   const [buildings, setBuildings] = useState([]);
   const buildingMap = useMemo(() => Object.fromEntries((buildings || []).map(b => [Number(b.building_id), b])), [buildings]);
   const [floors, setFloors] = useState([]);
-  const [allFloors, setAllFloors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [searchId, setSearchId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // remove inline create/edit; handled in FloorDetailPage
 
@@ -35,7 +34,6 @@ const FloorManagementPage = () => {
         if (!mounted) return;
         setBuildings(Array.isArray(bs) ? bs : []);
         const fl = Array.isArray(list) ? list : [];
-        setAllFloors(fl);
         setFloors(fl);
         setError('');
       } catch (e) {
@@ -75,35 +73,16 @@ const FloorManagementPage = () => {
     setSelectedIds(next);
   };
 
-  const reloadAll = async () => {
-    try {
-      setLoading(true);
-      const list = await getFloors();
-      const fl = Array.isArray(list) ? list : [];
-      setAllFloors(fl);
-      setFloors(fl);
-      setError('');
-    } catch (e) {
-      setError('Failed to load floors');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    const term = String(searchId).trim().toLowerCase();
-    if (!term) { await reloadAll(); return; }
-    setLoading(true);
-    const filtered = allFloors.filter(f => String(f.floor_code || '').toLowerCase().includes(term));
-    setFloors(filtered);
-    setError('');
-    setLoading(false);
-  };
-
-  const clearSearch = async () => {
-    setSearchId('');
-    await reloadAll();
-  };
+  const filteredFloors = useMemo(() => {
+    const term = String(searchTerm || '').trim().toLowerCase();
+    if (!term) return floors;
+    return floors.filter(f => {
+      const code = String(f?.floor_code || '').toLowerCase();
+      const name = String(f?.name || '').toLowerCase();
+      const buildingName = String(buildingMap[Number(f?.building_id)]?.name || '').toLowerCase();
+      return code.includes(term) || name.includes(term) || buildingName.includes(term);
+    });
+  }, [floors, searchTerm, buildingMap]);
 
   const goToCreate = () => {
     setFloorFormMode('create');
@@ -160,13 +139,12 @@ const FloorManagementPage = () => {
               <input
                 className="search-input"
                 type="text"
-                placeholder="Search by Floor Code"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                placeholder="Search by code, name, building"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { /* client filter only */ } }}
               />
-              <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
-              <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')} disabled={loading}>Clear</button>
             </div>
             <button className="primary-btn" onClick={goToCreate}>+ Add Floor</button>
             <button className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
@@ -192,10 +170,10 @@ const FloorManagementPage = () => {
               <div className="cell actions">Actions</div>
             </div>
 
-            {floors.length === 0 ? (
+            {filteredFloors.length === 0 ? (
               <div className="no-results">No floors found.</div>
             ) : (
-              floors.map((f) => (
+              filteredFloors.map((f) => (
                 <div key={f.floor_id} className={`roles-table-row ${selectedIds.has(f.floor_id) ? 'selected' : ''}`}>
                   <div className="cell checkbox">
                     <input type="checkbox" checked={selectedIds.has(f.floor_id)} onChange={() => toggleSelect(f.floor_id)} />

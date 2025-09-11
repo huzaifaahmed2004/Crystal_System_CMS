@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/job-management.css';
 import '../styles/role-management.css';
 import { getPeople, deletePerson } from '../services/peopleService';
@@ -8,7 +8,6 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 const PeopleManagementPage = () => {
   const { setActiveSection } = useAppContext();
   const [list, setList] = useState([]);
-  const [allList, setAllList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
@@ -23,7 +22,6 @@ const PeopleManagementPage = () => {
         const res = await getPeople();
         const arr = Array.isArray(res) ? res : [];
         setList(arr);
-        setAllList(arr);
       } catch (e) {
         setError(e?.message || 'Failed to load people');
       } finally {
@@ -51,13 +49,10 @@ const PeopleManagementPage = () => {
 
   const fullName = (p) => [p?.people_name, p?.people_surname].filter(Boolean).join(' ') || '-';
 
-  const handleSearch = () => {
+  const filtered = useMemo(() => {
     const term = String(searchTerm || '').trim().toLowerCase();
-    if (!term) {
-      setList(allList);
-      return;
-    }
-    const filtered = allList.filter(p => {
+    if (!term) return list;
+    return list.filter(p => {
       const name = String(p?.people_name || '').toLowerCase();
       const surname = String(p?.people_surname || '').toLowerCase();
       const email = String(p?.people_email || '').toLowerCase();
@@ -71,13 +66,7 @@ const PeopleManagementPage = () => {
         phone.includes(term)
       );
     });
-    setList(filtered);
-  };
-
-  const clearSearch = () => {
-    setSearchTerm('');
-    setList(allList);
-  };
+  }, [list, searchTerm]);
 
   return (
     <div className="page-container">
@@ -92,13 +81,12 @@ const PeopleManagementPage = () => {
               <input
                 className="search-input"
                 type="text"
-                placeholder="Search name, email, phone"
+                placeholder="Search by name, email, phone"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') {/* client filter only */} }}
               />
-              <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
-              <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')} disabled={loading}>Clear</button>
             </div>
             <button className="primary-btn" onClick={() => setActiveSection('people-create')}>+ Add Person</button>
           </div>
@@ -120,10 +108,10 @@ const PeopleManagementPage = () => {
               <div className="cell actions" style={{ textAlign: 'right' }}>Actions</div>
             </div>
 
-            {(!list || list.length === 0) ? (
+            {(!filtered || filtered.length === 0) ? (
               <div className="no-results">No people found</div>
             ) : (
-              list.map(p => (
+              filtered.map(p => (
                 <div key={p.people_id} className="roles-table-row" style={{ gridTemplateColumns: '1.5fr 0.9fr 1.6fr 1.2fr 1.2fr 180px' }}>
                   <div className="cell">{fullName(p)}</div>
                   <div className="cell">{p?.is_manager ? 'Yes' : 'No'}</div>

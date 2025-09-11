@@ -22,6 +22,7 @@ const UserAccessControlPage = () => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', role_id: '', company_id: '' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   const roleNameById = useMemo(() => {
     const m = new Map();
@@ -33,6 +34,18 @@ const UserAccessControlPage = () => {
     companies.forEach(c => m.set(Number(c.company_id), c.name));
     return m;
   }, [companies]);
+
+  const filteredUsers = useMemo(() => {
+    const q = (searchTerm || '').toLowerCase().trim();
+    if (!q) return users;
+    return (users || []).filter(u => {
+      const name = String(u.name || '').toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      const role = String(roleNameById.get(Number(u.role_id)) || '').toLowerCase();
+      const company = String(companyNameById.get(Number(u.company_id)) || '').toLowerCase();
+      return name.includes(q) || email.includes(q) || role.includes(q) || company.includes(q);
+    });
+  }, [users, searchTerm, roleNameById, companyNameById]);
 
   const reload = async () => {
     try {
@@ -203,6 +216,17 @@ const UserAccessControlPage = () => {
             <p className="page-subtitle">View all users and create new ones</p>
           </div>
           <div className="roles-toolbar">
+            <div className="roles-search">
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Search by name, email, role, company"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { /* client filter only */ } }}
+              />
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')} disabled={loading}>Clear</button>
+            </div>
             <button type="button" className="primary-btn" onClick={openCreate}>Create User</button>
             <button type="button" className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
           </div>
@@ -227,10 +251,10 @@ const UserAccessControlPage = () => {
               <div className="cell">Created at</div>
               <div className="cell actions">Actions</div>
             </div>
-            {users.length === 0 ? (
+            {filteredUsers.length === 0 ? (
               <div className="no-results">No users found</div>
             ) : (
-              users.map(u => (
+              filteredUsers.map(u => (
                 <div key={u.user_id} className={`users-table-row ${selectedIds.has(u.user_id) ? 'selected' : ''}`}>
                   <div className="cell checkbox">
                     <input

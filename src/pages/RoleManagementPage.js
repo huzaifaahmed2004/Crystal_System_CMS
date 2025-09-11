@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
-import { getRoles, getRoleById, createRole, patchRole, deleteRole, deleteRolesBulk } from '../services/roleService';
+import { getRoles, createRole, patchRole, deleteRole, deleteRolesBulk } from '../services/roleService';
 import Modal from '../components/ui/Modal';
 import FormModal from '../components/ui/FormModal';
 
@@ -17,7 +17,7 @@ const RoleManagementPage = () => {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
   const [createError, setCreateError] = useState('');
-  const [searchId, setSearchId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [modal, setModal] = useState({ open: false, title: 'Notice', message: '' });
 
   const openModal = (title, message) => setModal({ open: true, title, message });
@@ -155,30 +155,15 @@ const RoleManagementPage = () => {
     }
   };
 
-  const handleSearch = async () => {
-    const id = String(searchId).trim();
-    if (!id) {
-      await reloadAll();
-      return;
-    }
-    try {
-      setLoading(true);
-      const item = await getRoleById(id);
-      // If backend returns 404, this will go to catch
-      setRoles(item ? [item] : []);
-      setError(null);
-    } catch (e) {
-      setRoles([]);
-      setError(e?.message || 'No role found for the provided ID');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const clearSearch = async () => {
-    setSearchId('');
-    await reloadAll();
-  };
+  const filteredRoles = useMemo(() => {
+    const q = (searchTerm || '').toLowerCase().trim();
+    if (!q) return roles;
+    return (roles || []).filter(r => {
+      const name = String(r.name || '').toLowerCase();
+      const desc = String(r.description || '').toLowerCase();
+      return name.includes(q) || desc.includes(q);
+    });
+  }, [roles, searchTerm]);
 
   return (
     <>
@@ -194,14 +179,12 @@ const RoleManagementPage = () => {
               <input
                 className="search-input"
                 type="text"
-                inputMode="numeric"
-                placeholder="Search by Role ID"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                placeholder="Search by name, description"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { /* client filter only */ } }}
               />
-              <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
-              <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')} disabled={loading}>Clear</button>
             </div>
             <button className="primary-btn" onClick={openCreateRole}>+ Create Role</button>
             <button className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
@@ -227,10 +210,10 @@ const RoleManagementPage = () => {
                 <div className="cell actions">Actions</div>
               </div>
 
-              {roles.length === 0 ? (
+              {filteredRoles.length === 0 ? (
                 <div className="no-results">No roles found.</div>
               ) : (
-                roles.map((role) => (
+                filteredRoles.map((role) => (
                   <div className={`roles-table-row ${selectedIds.has(role.role_id) ? 'selected' : ''}`} key={role.role_id}>
                     <div className="cell checkbox">
                       <input

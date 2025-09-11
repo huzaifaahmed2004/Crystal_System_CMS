@@ -90,16 +90,18 @@ const ProcessManagementPage = () => {
             <p className="page-subtitle">Browse all processes</p>
           </div>
           <div className="roles-toolbar">
-            <button className="primary-btn" onClick={() => setActiveSection('process-create')} style={{ marginRight: 8 }}>+ Create Process</button>
             <div className="roles-search">
               <input
                 className="search-input"
                 type="text"
-                placeholder="Search by code, name, or company..."
+                placeholder="Search by code, name, company"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { /* client filter only */ } }}
               />
+              <button className="secondary-btn sm" onClick={() => setSearch('')}>Clear</button>
             </div>
+            <button className="primary-btn" onClick={() => setActiveSection('process-create')}>+ Create Process</button>
           </div>
         </div>
       </div>

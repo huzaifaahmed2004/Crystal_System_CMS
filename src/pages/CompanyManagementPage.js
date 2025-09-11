@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/company-management.css';
 import Modal from '../components/ui/Modal';
 import FormModal from '../components/ui/FormModal';
-import { getCompanies, getCompanyById, createCompany, patchCompany, deleteCompany, deleteCompaniesBulk } from '../services/companyService';
+import { getCompanies, createCompany, patchCompany, deleteCompany, deleteCompaniesBulk } from '../services/companyService';
 import { getUsers } from '../services/userService';
 
 const emptyForm = { companyCode: '', name: '' };
@@ -19,7 +19,7 @@ const CompanyManagementPage = () => {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
   const [createError, setCreateError] = useState('');
-  const [searchId, setSearchId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [modal, setModal] = useState({ open: false, title: 'Notice', message: '' });
 
   const openModal = (title, message) => setModal({ open: true, title, message });
@@ -184,23 +184,15 @@ const CompanyManagementPage = () => {
     }
   };
 
-  const handleSearch = async () => {
-    const id = String(searchId).trim();
-    if (!id) { await reloadAll(); return; }
-    try {
-      setLoading(true);
-      const item = await getCompanyById(id);
-      setCompanies(item ? [item] : []);
-      setError(null);
-    } catch (e) {
-      setCompanies([]);
-      setError(e?.message || 'No company found for the provided code');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const clearSearch = async () => { setSearchId(''); await reloadAll(); };
+  const filteredCompanies = useMemo(() => {
+    const q = (searchTerm || '').toLowerCase().trim();
+    if (!q) return companies;
+    return (companies || []).filter(c => {
+      const code = String(c.companyCode || '').toLowerCase();
+      const name = String(c.name || '').toLowerCase();
+      return code.includes(q) || name.includes(q);
+    });
+  }, [companies, searchTerm]);
 
   return (
     <>
@@ -216,14 +208,12 @@ const CompanyManagementPage = () => {
               <input
                 className="search-input"
                 type="text"
-                inputMode="numeric"
-                placeholder="Search by Company Code"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                placeholder="Search by code, name"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { /* client filter only */ } }}
               />
-              <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
-              <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')} disabled={loading}>Clear</button>
             </div>
             <button className="primary-btn" onClick={openCreate}>+ Create Company</button>
             <button className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
@@ -249,10 +239,10 @@ const CompanyManagementPage = () => {
               <div className="cell actions">Actions</div>
             </div>
 
-            {companies.length === 0 ? (
+            {filteredCompanies.length === 0 ? (
               <div className="no-results">No companies found.</div>
             ) : (
-              companies.map((c) => (
+              filteredCompanies.map((c) => (
                 <div className={`roles-table-row ${selectedIds.has(c.company_id) ? 'selected' : ''}`} key={c.company_id}>
                   <div className="cell checkbox">
                     <input

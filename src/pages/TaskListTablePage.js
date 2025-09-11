@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/role-management.css';
 import '../styles/job-management.css';
 import { getTasks, deleteTask } from '../services/taskService';
@@ -15,6 +15,7 @@ const TaskListTablePage = () => {
   const [deletingId, setDeletingId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -61,6 +62,18 @@ const TaskListTablePage = () => {
     try { const d = new Date(v); return isNaN(d.getTime()) ? '-' : d.toLocaleString(); } catch { return '-'; }
   };
 
+  // Client-side filter: by name, code, company
+  const filteredList = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(t => {
+      const name = String(taskName(t)).toLowerCase();
+      const code = String(taskCode(t)).toLowerCase();
+      const comp = String(companyName(t)).toLowerCase();
+      return name.includes(q) || code.includes(q) || comp.includes(q);
+    });
+  }, [list, searchTerm]);
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -70,6 +83,17 @@ const TaskListTablePage = () => {
             <p className="page-subtitle">Browse tasks. Use actions to manage.</p>
           </div>
           <div className="roles-toolbar">
+            <div className="roles-search">
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Search by name, code, company"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { /* client filter only */ } }}
+              />
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')}>Clear</button>
+            </div>
             <button className="primary-btn" onClick={() => setActiveSection('task-create')}>+ Create Task</button>
           </div>
         </div>
@@ -90,10 +114,10 @@ const TaskListTablePage = () => {
               <div className="cell actions" style={{ textAlign: 'right' }}>Actions</div>
             </div>
 
-            {(!list || list.length === 0) ? (
+            {(!filteredList || filteredList.length === 0) ? (
               <div className="no-results">No tasks found</div>
             ) : (
-              list.map(t => (
+              filteredList.map(t => (
                 <div key={t.task_id} className="roles-table-row" style={{ gridTemplateColumns: '1.6fr 1.2fr 1.2fr 1.2fr 1.2fr 180px' }}>
                   <div className="cell">{taskName(t)}</div>
                   <div className="cell">{taskCode(t)}</div>

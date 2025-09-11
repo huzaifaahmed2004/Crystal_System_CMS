@@ -7,12 +7,11 @@ const BuildingManagementPage = () => {
   const { setActiveSection, setBuildingId, setBuildingFormMode } = useAppContext();
 
   const [buildings, setBuildings] = useState([]);
-  const [allBuildings, setAllBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [searchId, setSearchId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -20,7 +19,6 @@ const BuildingManagementPage = () => {
         setLoading(true);
         const data = await getBuildings();
         const list = Array.isArray(data) ? data : [];
-        setAllBuildings(list);
         setBuildings(list);
       } catch (e) {
         setError(e?.message || 'Failed to load buildings');
@@ -46,40 +44,17 @@ const BuildingManagementPage = () => {
     setSelectedIds(next);
   };
 
-  const reloadAll = async () => {
-    try {
-      setLoading(true);
-      const data = await getBuildings();
-      const list = Array.isArray(data) ? data : [];
-      setAllBuildings(list);
-      setBuildings(list);
-      setError(null);
-    } catch (e) {
-      setError('Failed to load buildings');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    const term = String(searchId).trim().toLowerCase();
-    if (!term) {
-      await reloadAll();
-      return;
-    }
-    setLoading(true);
-    const filtered = allBuildings.filter((b) => String(b.building_code || '')
-      .toLowerCase()
-      .includes(term));
-    setBuildings(filtered);
-    setError(null);
-    setLoading(false);
-  };
-
-  const clearSearch = async () => {
-    setSearchId('');
-    await reloadAll();
-  };
+  const filteredBuildings = useMemo(() => {
+    const q = (searchTerm || '').toLowerCase().trim();
+    if (!q) return buildings;
+    return (buildings || []).filter(b => {
+      const name = String(b.name || '').toLowerCase();
+      const code = String(b.building_code || '').toLowerCase();
+      const country = String(b.country || '').toLowerCase();
+      const city = String(b.city || '').toLowerCase();
+      return name.includes(q) || code.includes(q) || country.includes(q) || city.includes(q);
+    });
+  }, [buildings, searchTerm]);
 
   const goToDetail = (mode, id = null) => {
     setBuildingFormMode(mode);
@@ -135,13 +110,12 @@ const BuildingManagementPage = () => {
               <input
                 className="search-input"
                 type="text"
-                placeholder="Search by Building Code"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                placeholder="Search by name, code, country, city"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { /* client filter only */ } }}
               />
-              <button className="primary-btn sm" onClick={handleSearch} disabled={loading}>Search</button>
-              <button className="secondary-btn sm" onClick={clearSearch} disabled={loading}>Clear</button>
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')} disabled={loading}>Clear</button>
             </div>
             <button className="primary-btn" onClick={() => goToDetail('create', null)}>+ Create Building</button>
             <button className="danger-btn" onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete Selected</button>
@@ -168,10 +142,10 @@ const BuildingManagementPage = () => {
               <div className="cell actions">Actions</div>
             </div>
 
-            {buildings.length === 0 ? (
+            {filteredBuildings.length === 0 ? (
               <div className="no-results">No buildings found.</div>
             ) : (
-              buildings.map((b) => (
+              filteredBuildings.map((b) => (
                 <div className={`roles-table-row ${selectedIds.has(b.building_id) ? 'selected' : ''}`} key={b.building_id}>
                   <div className="cell checkbox">
                     <input

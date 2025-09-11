@@ -216,6 +216,24 @@ const JobManagementPage = () => {
     }
   };
 
+  // Filter API-backed table by search term (name, code, company, function)
+  const filteredList = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(j => {
+      const name = String(j.name || '').toLowerCase();
+      const code = String(j.jobCode || j.job_code || '').toLowerCase();
+      const functionName = String(functionsMap[String(j.function_id)] || '').toLowerCase();
+      const companyName = String(companiesMap[String(j.company_id)] || '').toLowerCase();
+      return (
+        name.includes(q) ||
+        code.includes(q) ||
+        functionName.includes(q) ||
+        companyName.includes(q)
+      );
+    });
+  }, [list, searchTerm, functionsMap, companiesMap]);
+
   const handleView = (id) => {
     try { localStorage.setItem('activeJobId', String(id)); } catch {}
     setJobId(id);
@@ -420,6 +438,17 @@ const JobManagementPage = () => {
             <p className="page-subtitle">Browse jobs. Use actions to view or edit.</p>
           </div>
           <div className="roles-toolbar">
+            <div className="roles-search">
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Search by name, code, company, function"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') {/* client filter only */} }}
+              />
+              <button className="secondary-btn sm" onClick={() => setSearchTerm('')}>Clear</button>
+            </div>
             <button className="primary-btn" onClick={handleCreateJob}>+ Create Job</button>
           </div>
         </div>
@@ -441,10 +470,10 @@ const JobManagementPage = () => {
               <div className="cell actions" style={{ textAlign: 'right' }}>Actions</div>
             </div>
 
-            {(!list || list.length === 0) ? (
+            {(!filteredList || filteredList.length === 0) ? (
               <div className="no-results">No jobs found</div>
             ) : (
-              list.map(j => (
+              filteredList.map(j => (
                 <div key={j.job_id} className="roles-table-row" style={{ gridTemplateColumns: '1fr 1.3fr 1.2fr 1.2fr 1.1fr 1.1fr 180px' }}>
                   <div className="cell">{j.jobCode || '-'}</div>
                   <div className="cell">{j.name || '-'}</div>
