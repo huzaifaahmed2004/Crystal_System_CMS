@@ -1,10 +1,15 @@
-.slider { position: relative; overflow: hidden; border: 1px solid #e5e7eb; border-radius: 12px; background:#fff; }
-.slides { position: relative; height: 460px; display:flex; }
-.slide { min-width: 100%; height: 460px; object-fit: cover; opacity: 0; transition: opacity .3s ease; position: absolute; left:0; top:0; }
-.slide.active { opacity: 1; }
+.slider, .po-slider { position: relative; overflow: hidden; border: 1px solid #e5e7eb; border-radius: 12px; background:#fff; width: 100%; }
+/* Fixed-height viewport to avoid collapsing in some flex/grid contexts */
+.slides, .po-slides { position: relative; width: 100%; min-height: 420px; display: flex; align-items: center; justify-content: center; background: #f8fafc; padding: 0 48px; box-sizing: border-box; }
+.slide, .po-slide { display: none; width: 100%; height: auto; max-height: 80vh; object-fit: contain; }
+.slide.active, .po-slide.active { display: block; }
 .slider-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: 1px solid #e5e7eb; width: 36px; height: 36px; border-radius: 50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size: 20px; color:#334155; }
 .slider-nav.left { left: 8px; }
 .slider-nav.right { right: 8px; }
+.po-slides.dragging { cursor: grabbing; }
+.po-zoom-controls { position: absolute; right: 12px; bottom: 12px; background: rgba(255,255,255,0.95); border: 1px solid #e5e7eb; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; box-shadow: 0 2px 6px rgba(15,23,42,0.08); }
+.po-zoom-controls button { border: 1px solid #e5e7eb; background: #fff; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.po-zoom-controls .po-zoom-level { font-size: 12px; color: #334155; min-width: 44px; text-align: center; }
 .dots { display:flex; gap:8px; justify-content:center; margin-top:8px; }
 .dot { width:10px; height:10px; border-radius:50%; border:1px solid #94a3b8; background:#e5e7eb; cursor:pointer; }
 .dot.active { background:#3b82f6; border-color:#3b82f6; }

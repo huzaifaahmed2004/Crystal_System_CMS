@@ -1,13 +1,14 @@
 import React, { useEffect } from 'react';
 import '../styles/what-if-analysis.css';
 import { optimizeProcess as svcOptimizeProcess } from '../services/whatIfService';
-import { getProcessesWithRelations } from '../services/processService';
+import { getProcessesWithRelations, getProcessWithRelations } from '../services/processService';
+import FormModal from '../components/ui/FormModal';
 
 // Lightweight integration of the existing What-If Dashboard logic.
 // We reuse the same element IDs so we can port the logic quickly.
 
 class WhatIfDashboard {
-  constructor(root) {
+  constructor(root, opts = {}) {
     this.root = root;
     this.originalScenario = null;
     this.currentScenario = null;
@@ -20,6 +21,7 @@ class WhatIfDashboard {
     this._mounted = false;
     this._processesLoading = false;
     this._processesLoaded = false;
+    this.openMinTasksModal = typeof opts.openMinTasks === 'function' ? opts.openMinTasks : null;
   }
 
   mount() {
@@ -28,7 +30,18 @@ class WhatIfDashboard {
     this.root.dataset.wifMounted = '1';
 
     // bind listeners within root scope
-    this.q('#processDropdown')?.addEventListener('input', this.onProcessSelect.bind(this));
+    const inputEl = this.q('#processDropdown');
+    inputEl?.addEventListener('input', this.onProcessSelect.bind(this));
+    inputEl?.addEventListener('focus', () => {
+      try { inputEl.value = ''; } catch (_) {}
+      const btn = this.q('#optimizeBtn');
+      if (btn) btn.disabled = true;
+      // Optionally hide previously shown sections on reset
+      this.q('#bestScenario')?.classList.add('hidden');
+      this.q('#constraintAdjustment')?.classList.add('hidden');
+      this.q('#comparisonSection')?.classList.add('hidden');
+      this.q('#impactPreviewSection')?.classList.add('hidden');
+    });
     this.q('#optimizeBtn')?.addEventListener('click', this.optimizeProcess.bind(this));
 
     this.qAll('.tab-btn').forEach(btn => btn.addEventListener('click', this.switchTab.bind(this)));
@@ -111,6 +124,25 @@ class WhatIfDashboard {
     if (btn) btn.disabled = true;
 
     try {
+      // Guard: require at least 2 tasks in process before optimizing
+      try {
+        const proc = await getProcessWithRelations(processId);
+        let tasksCount = 0; let confident = false;
+        const wf = Array.isArray(proc?.workflow) ? proc.workflow : null;
+        if (wf) {
+          const ids = wf.map(w => w?.task_id).filter(Boolean);
+          if (ids.length > 0) { tasksCount = new Set(ids).size; confident = true; }
+          else if (wf.length > 0) { tasksCount = wf.length; confident = true; }
+        }
+        if (!confident && Array.isArray(proc?.tasks)) { tasksCount = proc.tasks.length; confident = true; }
+        if (!confident && Array.isArray(proc?.process_tasks)) { tasksCount = proc.process_tasks.length; confident = true; }
+        if (confident && tasksCount < 2) {
+          if (this.openMinTasksModal) this.openMinTasksModal();
+          return;
+        }
+      } catch (_) {
+        // If we can't determine count, allow optimize to proceed
+      }
       const result = await svcOptimizeProcess(processId);
 
       // Support multiple backend response shapes
@@ -755,10 +787,11 @@ class WhatIfDashboard {
 
 const WhatIfAnalysisPage = () => {
   const containerRef = React.useRef(null);
+  const [showMinTasksModal, setShowMinTasksModal] = React.useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const dashboard = new WhatIfDashboard(containerRef.current);
+    const dashboard = new WhatIfDashboard(containerRef.current, { openMinTasks: () => setShowMinTasksModal(true) });
     dashboard.mount();
     return () => {
       // no global listeners were added beyond root-scoped
@@ -774,6 +807,17 @@ const WhatIfAnalysisPage = () => {
             <p className="page-subtitle">Optimize scenarios with AI-powered allocation</p>
           </div>
         </div>
+
+        <FormModal
+          open={showMinTasksModal}
+          title="Not enough tasks"
+          onCancel={() => setShowMinTasksModal(false)}
+          footer={(<button type="button" className="primary-btn" onClick={() => setShowMinTasksModal(false)}>OK</button>)}
+        >
+          <div style={{ fontSize: 14, color: '#334155' }}>
+            At least 2 tasks are required in a process to run optimization. Please add more tasks and try again.
+          </div>
+        </FormModal>
       </div>
 
       <div className="page-content whatif">
