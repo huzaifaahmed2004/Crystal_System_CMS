@@ -3,7 +3,8 @@ import '../styles/role-management.css';
 import { useAppContext } from '../context/AppContext';
 import { getBuildings } from '../services/buildingService';
 import { getFloorById, getFloors, createFloor, patchFloor, getFloorWithRelations } from '../services/floorService';
-import { createTable, deleteTable } from '../services/tableService';
+import { createTable, deleteTable, addTableJob, deleteTableJob, getTableJobs, getTablesWithRelations } from '../services/tableService';
+import { getJobs } from '../services/jobService';
 import FormModal from '../components/ui/FormModal';
 
 const FloorDetailPage = () => {
@@ -31,10 +32,14 @@ const FloorDetailPage = () => {
   const [cellTableIds, setCellTableIds] = useState({}); // key -> created table id (for delete)
   const [cellTableTypes, setCellTableTypes] = useState({}); // key -> array of typeIds per table index
   const [jobModal, setJobModal] = useState({ open: false, key: null, index: null });
-  const [jobInputs, setJobInputs] = useState([]); // working copy for modal inputs
-  const [jobErrors, setJobErrors] = useState([]); // per-row validation errors in modal
+  const [jobInputs, setJobInputs] = useState([]); // working copy for modal inputs per slot [jobId|string]
+  const [jobErrors, setJobErrors] = useState([]); // reserved
   const [modalError, setModalError] = useState(''); // modal-level error (e.g., API delete failure)
   const [cellScale, setCellScale] = useState(1); // zoom for grid cells (fixed now)
+  const [companyJobs, setCompanyJobs] = useState([]); // jobs for the building's company
+  const [slotLocked, setSlotLocked] = useState([]); // lock state per slot
+  const [confirmRemove, setConfirmRemove] = useState({ open: false, key: null, index: null });
+  const [usedJobIdsGlobal, setUsedJobIdsGlobal] = useState(new Set()); // jobs already assigned on any table
   const displayTableTypes = useMemo(() => {
     // 12 icons: 1hor, 1ver, 2hor, 2ver, ..., 6hor, 6ver
     const base = [];
@@ -111,6 +116,30 @@ const FloorDetailPage = () => {
 
   // Keep Functions/Subfunctions panel empty for now (no backend functions)
   const functionNames = useMemo(() => [], []);
+
+  // Load jobs for the selected building's company to populate the modal dropdowns
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const companyId = Number(selectedBuilding?.company_id);
+      if (!Number.isFinite(companyId) || companyId <= 0) { if (mounted) setCompanyJobs([]); return; }
+      try {
+        const all = await getJobs();
+        const filtered = Array.isArray(all) ? all.filter(j => Number(j?.company_id) === companyId) : [];
+        // De-duplicate by job name for clean dropdown
+        const seen = new Set();
+        const list = [];
+        filtered.forEach(j => {
+          const label = String(j?.name || j?.jobCode || j?.job_code || '').trim() || `Job ${j?.id || j?.job_id || ''}`;
+          if (!seen.has(label)) { seen.add(label); list.push({ id: j?.id ?? j?.job_id, label }); }
+        });
+        if (mounted) setCompanyJobs(list);
+      } catch (_) {
+        if (mounted) setCompanyJobs([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [selectedBuilding?.company_id]);
 
   // Support hard refresh on Edit page by restoring floorId from URL or localStorage
   const urlParams = useMemo(() => {
@@ -509,22 +538,39 @@ const FloorDetailPage = () => {
     setCellTableTypes((prev) => { const p = { ...prev }; delete p[key]; return p; });
   };
 
-  const openJobsForTable = (key, index) => {
+  const openJobsForTable = async (key, index) => {
     const idx = Number(index) || 0;
     const typeForTable = (Array.isArray(cellTableTypes[key]) && cellTableTypes[key][idx]) || assignments[key];
     const capacity = tablesFromTypeId(typeForTable);
     const existingTables = Array.isArray(cellJobs[key]) ? cellJobs[key] : [];
-    const existingForTable = existingTables[idx];
-    let values = [];
-    if (Array.isArray(existingForTable)) {
-      values = existingForTable.slice(0, capacity);
-    } else if (existingForTable != null) {
-      values = [String(existingForTable)];
-    }
+    const existingForTable = existingTables[idx]; // expect array of jobIds or ''
+    let values = Array.isArray(existingForTable) ? existingForTable.slice(0, capacity) : [];
     while (values.length < capacity) values.push('');
+    // Try to fetch from server to ensure accuracy
+    try {
+      const tableIds = Array.isArray(cellTableIds[key]) ? cellTableIds[key] : (cellTableIds[key] != null ? [cellTableIds[key]] : []);
+      const tableId = tableIds[idx];
+      if (tableId) {
+        const server = await getTableJobs(tableId);
+        if (Array.isArray(server) && server.length > 0) {
+          const assignedIds = server.map(r => Number(r?.job_id)).filter(Boolean).slice(0, capacity);
+          values = assignedIds.slice(0, capacity);
+          while (values.length < capacity) values.push('');
+        }
+      }
+      // Also get all tables to compute globally used jobs (so they can't be reused)
+      const allTables = await getTablesWithRelations();
+      const used = new Set();
+      (allTables || []).forEach(t => {
+        const tj = Array.isArray(t?.tableJobs) ? t.tableJobs : [];
+        tj.forEach(it => { const id = Number(it?.job_id); if (id) used.add(id); });
+      });
+      setUsedJobIdsGlobal(used);
+    } catch (_) { /* ignore and keep local */ }
     setJobInputs(values);
     setJobErrors(new Array(values.length).fill(''));
     setModalError('');
+    setSlotLocked(values.map(v => Boolean(v)));
     setJobModal({ open: true, key, index: idx });
   };
 
@@ -535,22 +581,78 @@ const FloorDetailPage = () => {
     setModalError('');
   };
 
-  const saveJobsModal = () => {
+  const openConfirmRemove = () => {
+    if (jobModal.key != null && Number.isFinite(Number(jobModal.index))) {
+      setConfirmRemove({ open: true, key: jobModal.key, index: Number(jobModal.index) });
+    }
+  };
+  const closeConfirmRemove = () => setConfirmRemove({ open: false, key: null, index: null });
+  const confirmRemoveTable = async () => {
+    const { key, index } = confirmRemove;
+    if (key == null || !Number.isFinite(Number(index))) { closeConfirmRemove(); return; }
+    await removeTableAt(key, Number(index));
+    closeConfirmRemove();
+    closeJobsModal();
+  };
+
+  // Assign job immediately when chosen for a specific slot
+  const onSelectJobAt = async (slotIndex, jobIdStr) => {
     const k = jobModal.key;
     const idx = Number(jobModal.index);
     if (!k || !Number.isFinite(idx)) return;
-    // Validate: all inputs non-empty
-    const trimmed = jobInputs.map((x) => String(x || '').trim());
-    const errs = trimmed.map((v) => (v ? '' : 'Required'));
-    setJobErrors(errs);
-    if (errs.some(Boolean)) { setModalError('Please fill all job fields for this table.'); return; }
-    setCellJobs((prev) => {
-      const tables = Array.isArray(prev[k]) ? prev[k].slice() : [];
-      while (tables.length <= idx) tables.push('');
-      tables[idx] = trimmed; // store array of jobs for this table
-      return { ...prev, [k]: tables };
-    });
-    closeJobsModal();
+    const jobId = Number(jobIdStr) || null;
+    setModalError('');
+    setJobInputs(arr => arr.map((v, i) => (i === slotIndex ? (jobId || '') : v)));
+    if (!jobId) return; // no selection
+    try {
+      const tableIds = Array.isArray(cellTableIds[k]) ? cellTableIds[k] : (cellTableIds[k] != null ? [cellTableIds[k]] : []);
+      const tableId = tableIds[idx];
+      if (!tableId) { setModalError('Missing table id for this cell'); return; }
+      await addTableJob(tableId, jobId);
+      // Persist in state: ensure an array of jobIds per table
+      setCellJobs((prev) => {
+        const tables = Array.isArray(prev[k]) ? prev[k].slice() : [];
+        while (tables.length <= idx) tables.push([]);
+        const current = Array.isArray(tables[idx]) ? tables[idx].slice() : [];
+        current[slotIndex] = jobId;
+        tables[idx] = current;
+        return { ...prev, [k]: tables };
+      });
+      setSlotLocked(arr => arr.map((v, i) => (i === slotIndex ? true : v)));
+      // Re-fetch to refresh disabled options and locks from server
+      await openJobsForTable(k, idx);
+    } catch (e) {
+      setModalError('Failed to assign job.');
+    }
+  };
+
+  const onChangeJobAt = async (slotIndex) => {
+    const k = jobModal.key;
+    const idx = Number(jobModal.index);
+    if (!k || !Number.isFinite(idx)) return;
+    const currentArr = Array.isArray(cellJobs[k]) ? cellJobs[k] : [];
+    const perTable = Array.isArray(currentArr[idx]) ? currentArr[idx] : [];
+    const currentJobId = perTable[slotIndex] || null;
+    const tableIds = Array.isArray(cellTableIds[k]) ? cellTableIds[k] : (cellTableIds[k] != null ? [cellTableIds[k]] : []);
+    const tableId = tableIds[idx];
+    if (!tableId || !currentJobId) { setSlotLocked(arr => arr.map((v, i) => (i === slotIndex ? false : v))); setJobInputs(arr => arr.map((v, i) => (i === slotIndex ? '' : v))); return; }
+    try {
+      await deleteTableJob(tableId, currentJobId);
+      setCellJobs((prev) => {
+        const tables = Array.isArray(prev[k]) ? prev[k].slice() : [];
+        while (tables.length <= idx) tables.push([]);
+        const current = Array.isArray(tables[idx]) ? tables[idx].slice() : [];
+        current[slotIndex] = '';
+        tables[idx] = current;
+        return { ...prev, [k]: tables };
+      });
+      setSlotLocked(arr => arr.map((v, i) => (i === slotIndex ? false : v)));
+      setJobInputs(arr => arr.map((v, i) => (i === slotIndex ? '' : v)));
+      // Re-fetch to refresh disabled options and locks from server
+      await openJobsForTable(k, idx);
+    } catch (e) {
+      setModalError('Failed to remove job from this table.');
+    }
   };
 
   const backToList = () => {
@@ -818,35 +920,65 @@ const FloorDetailPage = () => {
         onCancel={closeJobsModal}
         footer={(
           <>
-            <button type="button" className="danger-btn" onClick={() => { if (jobModal.key != null && Number.isFinite(Number(jobModal.index))) { removeTableAt(jobModal.key, Number(jobModal.index)); } closeJobsModal(); }}>Remove this table</button>
+            <button type="button" className="danger-btn" onClick={openConfirmRemove}>Remove this table</button>
             <div style={{ flex: 1 }} />
-            <button type="button" className="primary-btn" onClick={saveJobsModal}>Save</button>
-            <button type="button" className="secondary-btn" onClick={closeJobsModal}>Cancel</button>
+            <button type="button" className="secondary-btn" onClick={closeJobsModal}>Close</button>
           </>
         )}
       >
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Enter the job for this specific table.</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Select jobs for this table. Number of assignments equals table capacity. Each selection assigns immediately and locks; use Change to update that slot.</div>
         {modalError ? (<div style={{ color: '#b91c1c', fontSize: 12, marginBottom: 10 }}>{modalError}</div>) : null}
         {(jobInputs || []).length === 0 ? (
           <div className="no-results">No table selected.</div>
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
             {jobInputs.map((val, idx) => (
-              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', alignItems: 'center', gap: 12 }}>
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', alignItems: 'center', gap: 12 }}>
                 <div style={{ fontWeight: 600, color: '#334155' }}>Job {idx + 1}</div>
                 <div>
-                  <input
-                    type="text"
-                    placeholder="JOB"
-                    value={val}
-                    onChange={(e) => setJobInputs((arr) => arr.map((v, i) => (i === idx ? e.target.value : v)))}
-                  />
-                  {jobErrors[idx] ? (<div style={{ color: '#b91c1c', fontSize: 11, marginTop: 4 }}>{jobErrors[idx]}</div>) : null}
+                  <select
+                    value={val || ''}
+                    onChange={(e) => onSelectJobAt(idx, e.target.value)}
+                    style={{ width: '100%' }}
+                    disabled={Boolean(slotLocked[idx])}
+                  >
+                    <option value="">Select a job…</option>
+                    {companyJobs.map(j => {
+                      const cur = Number(val || 0);
+                      const disabled = usedJobIdsGlobal.has(Number(j.id)) && Number(j.id) !== cur;
+                      return (
+                        <option key={j.id ?? j.label} value={j.id} disabled={disabled}>{j.label}{disabled ? ' (assigned)' : ''}</option>
+                      );
+                    })}
+                  </select>
+                  {companyJobs.length === 0 ? (
+                    <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }}>No jobs found for this company.</div>
+                  ) : null}
                 </div>
+                {slotLocked[idx] && (
+                  <button type="button" className="secondary-btn" onClick={() => onChangeJobAt(idx)}>Change</button>
+                )}
               </div>
             ))}
           </div>
         )}
+      </FormModal>
+
+      {/* Confirm remove table modal */}
+      <FormModal
+        open={Boolean(confirmRemove.open)}
+        title="Remove Table?"
+        onCancel={closeConfirmRemove}
+        footer={(
+          <>
+            <button type="button" className="secondary-btn" onClick={closeConfirmRemove}>Cancel</button>
+            <button type="button" className="danger-btn" onClick={confirmRemoveTable}>Yes, remove</button>
+          </>
+        )}
+      >
+        <div style={{ fontSize: 14, color: '#334155' }}>
+          This will permanently remove this table from the layout and delete its job assignments. Are you sure?
+        </div>
       </FormModal>
     </div>
   );

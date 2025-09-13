@@ -305,6 +305,14 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
                           What-if Analysis
                         </button>
                       </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'process-optimization' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('process-optimization')}
+                        >
+                          Process Optimization
+                        </button>
+                      </li>
                     </ul>
                   )}
                 </>

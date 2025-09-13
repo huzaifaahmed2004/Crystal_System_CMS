@@ -33,6 +33,7 @@ import PeopleCreatePage from '../pages/PeopleCreatePage';
 import PeopleEditPage from '../pages/PeopleEditPage';
 import PeopleViewPage from '../pages/PeopleViewPage';
 import WhatIfAnalysisPage from '../pages/WhatIfAnalysisPage';
+import ProcessOptimizationPage from '../pages/ProcessOptimizationPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -144,6 +145,8 @@ const Dashboard = ({ user, onLogout }) => {
         return <PeopleViewPage />;
       case 'what-if-analysis':
         return <WhatIfAnalysisPage />;
+      case 'process-optimization':
+        return <ProcessOptimizationPage />;
       // Backward compatibility for persisted sessions/older ids
       case 'company-management':
       case 'organization-management':
