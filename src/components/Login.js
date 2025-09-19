@@ -86,18 +86,6 @@ const Login = ({ onLogin }) => {
             />
           </div>
 
-          <div className="checkbox-group">
-            <input
-              id="remember-me"
-              name="remember-me"
-              type="checkbox"
-              className="checkbox-input"
-            />
-            <label htmlFor="remember-me" className="checkbox-label">
-              Remember me
-            </label>
-          </div>
-
           <button
             type="submit"
             className="auth-button"

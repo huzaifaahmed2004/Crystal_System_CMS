@@ -7,7 +7,14 @@ export async function getProcesses() {
 export async function getProcessesWithRelations() {
   try {
     const data = await api.get('/process/with-relations');
-    return Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) return [];
+    // Normalize shape differences from backend: ensure process_tasks exists
+    return data.map((item) => {
+      if (item && !Array.isArray(item.process_tasks) && Array.isArray(item.process_task)) {
+        return { ...item, process_tasks: item.process_task };
+      }
+      return item;
+    });
   } catch (e) {
     console.error('Failed to load /process/with-relations', e);
     return [];
@@ -39,7 +46,11 @@ export async function deleteProcess(id) {
 
 export async function getProcessWithRelations(id) {
   if (id == null) throw new Error('Process id is required');
-  return api.get(`/process/${id}/with-relations`);
+  const res = await api.get(`/process/${id}/with-relations`);
+  if (res && !Array.isArray(res.process_tasks) && Array.isArray(res.process_task)) {
+    return { ...res, process_tasks: res.process_task };
+  }
+  return res;
 }
 
 export async function createProcess(payload) {
