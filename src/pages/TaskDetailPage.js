@@ -50,10 +50,28 @@ const TaskDetailPage = () => {
   const companyName = useMemo(() => data?.company?.name || '-', [data]);
 
   const processesList = useMemo(() => {
-    // Support single object or array of processes in future
-    const p = data?.process;
-    if (!p) return [];
-    return Array.isArray(p) ? p : [p];
+    // Normalize possible backend shapes to an array of { process_name, process_code, name, ... }
+    if (!data) return [];
+    // 1) Preferred: data.process (object or array)
+    if (data.process) {
+      const p = data.process;
+      return Array.isArray(p) ? p : [p];
+    }
+    // 2) Alternative: data.processes (array)
+    if (Array.isArray(data.processes)) {
+      return data.processes;
+    }
+    // 3) Linking arrays: data.process_tasks or data.process_task with nested .process
+    const links = Array.isArray(data.process_tasks)
+      ? data.process_tasks
+      : (Array.isArray(data.process_task) ? data.process_task : []);
+    if (links.length > 0) {
+      return links
+        .map((pt) => pt?.process || null)
+        .filter(Boolean);
+    }
+    // Fallback: no associated process info
+    return [];
   }, [data]);
 
   const jobRows = useMemo(() => {
@@ -124,9 +142,15 @@ const TaskDetailPage = () => {
                           {processesList.length === 0 ? (
                             <span className="muted">None</span>
                           ) : (
-                            processesList.map((p, idx) => (
-                              <span key={idx} className="chip">{p?.name || p?.process_name || `Process ${idx+1}`}</span>
-                            ))
+                            processesList.map((p, idx) => {
+                              const label = (p?.process_name || p?.name || `Process ${idx + 1}`);
+                              const code = (p?.process_code || p?.code);
+                              return (
+                                <span key={idx} className="chip">
+                                  {label}{code ? ` [${code}]` : ''}
+                                </span>
+                              );
+                            })
                           )}
                         </div>
                       </div>

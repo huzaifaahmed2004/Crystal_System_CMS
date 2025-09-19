@@ -5,7 +5,7 @@ import SideTabs from '../components/layout/SideTabs';
 import { useAppContext } from '../context/AppContext';
 import { getCompaniesLite } from '../services/layoutService';
 import { createProcess } from '../services/processService';
-import { getTasks } from '../services/taskService';
+import { getTasks, getTaskWithRelations } from '../services/taskService';
 import { getJobs } from '../services/jobService';
 import RichTextEditor from '../components/ui/RichTextEditor';
 
@@ -18,6 +18,7 @@ const ProcessCreatePage = () => {
   const [companies, setCompanies] = React.useState([]);
   const [tasks, setTasks] = React.useState([]);
   const [jobs, setJobs] = React.useState([]);
+  const [workflowJobs, setWorkflowJobs] = React.useState([]); // per-row jobs for display
 
   const [form, setForm] = React.useState({
     process_name: '',
@@ -56,14 +57,48 @@ const ProcessCreatePage = () => {
 
   const addWorkflowRow = () => {
     setWorkflow(prev => ([...prev, { task_id: '', job_id: '' }]));
+    setWorkflowJobs(prev => ([...(Array.isArray(prev) ? prev : []), []]));
   };
 
   const removeWorkflowRow = (index) => {
     setWorkflow(prev => prev.filter((_, i) => i !== index));
+    setWorkflowJobs(prev => (Array.isArray(prev) ? prev.filter((_, i) => i !== index) : []));
   };
 
   const updateWorkflowRow = (index, key, value) => {
     setWorkflow(prev => prev.map((row, i) => i === index ? { ...row, [key]: value } : row));
+  };
+
+  // When a task is selected, auto-pick the first prelinked job (if any)
+  const handleTaskSelect = async (index, taskId) => {
+    // Update task_id immediately
+    setWorkflow(prev => prev.map((row, i) => i === index ? { ...row, task_id: taskId, job_id: '' } : row));
+    const idNum = Number(taskId);
+    if (!Number.isFinite(idNum) || idNum <= 0) return;
+    // Try to find jobs from cached tasks list first
+    const cached = (tasks || []).find(t => Number(t.task_id || t.id) === idNum);
+    let jobsForTask = Array.isArray(cached?.jobTasks) ? cached.jobTasks.map(jt => jt?.job).filter(Boolean) : [];
+    let firstJobId = jobsForTask[0]?.job_id ?? null;
+    if (!jobsForTask.length) {
+      // Fetch relations on-demand if cache lacks jobTasks
+      try {
+        const rel = await getTaskWithRelations(idNum);
+        jobsForTask = Array.isArray(rel?.jobTasks) ? rel.jobTasks.map(x => x?.job).filter(Boolean) : [];
+        firstJobId = jobsForTask[0]?.job_id ?? null;
+      } catch (_) {
+        // ignore errors; leave empty
+      }
+    }
+    // Update visible jobs for this row
+    setWorkflowJobs(prev => {
+      const copy = Array.isArray(prev) ? [...prev] : [];
+      copy[index] = jobsForTask;
+      return copy;
+    });
+    // Keep backend contract: store first job id if present
+    if (firstJobId != null) {
+      setWorkflow(prev => prev.map((row, i) => i === index ? { ...row, job_id: String(firstJobId) } : row));
+    }
   };
 
   const moveWorkflowRowUp = (index) => {
@@ -75,6 +110,13 @@ const ProcessCreatePage = () => {
       copy[index] = temp;
       return copy;
     });
+    setWorkflowJobs(prev => {
+      const arr = Array.isArray(prev) ? [...prev] : [];
+      const tmp = arr[index - 1];
+      arr[index - 1] = arr[index];
+      arr[index] = tmp;
+      return arr;
+    });
   };
 
   const moveWorkflowRowDown = (index) => {
@@ -85,6 +127,14 @@ const ProcessCreatePage = () => {
       copy[index + 1] = copy[index];
       copy[index] = temp;
       return copy;
+    });
+    setWorkflowJobs(prev => {
+      const arr = Array.isArray(prev) ? [...prev] : [];
+      if (index >= arr.length - 1) return arr;
+      const tmp = arr[index + 1];
+      arr[index + 1] = arr[index];
+      arr[index] = tmp;
+      return arr;
     });
   };
 
@@ -215,7 +265,7 @@ const ProcessCreatePage = () => {
                         ) : workflow.map((row, idx) => (
                           <div key={idx} className="roles-table-row" style={{ gridTemplateColumns: '1fr 1fr 90px 200px' }}>
                             <div className="cell">
-                              <select style={{ width: '100%' }} value={row.task_id} onChange={e => updateWorkflowRow(idx, 'task_id', e.target.value)}>
+                              <select style={{ width: '100%' }} value={row.task_id} onChange={e => handleTaskSelect(idx, e.target.value)}>
                                 <option value="">Select task</option>
                                 {tasks.map(t => (
                                   <option key={t.task_id || t.id} value={t.task_id || t.id}>
@@ -225,14 +275,31 @@ const ProcessCreatePage = () => {
                               </select>
                             </div>
                             <div className="cell">
-                              <select style={{ width: '100%' }} value={row.job_id} onChange={e => updateWorkflowRow(idx, 'job_id', e.target.value)}>
-                                <option value="">Select job</option>
-                                {jobs.map(j => (
-                                  <option key={j.job_id || j.id} value={j.job_id || j.id}>
-                                    {j.name} {j.jobCode || j.job_code || j.code ? `- ${j.jobCode || j.job_code || j.code}` : ''}
-                                  </option>
-                                ))}
-                              </select>
+                              {Array.isArray(workflowJobs[idx]) && workflowJobs[idx].length > 0 ? (
+                                <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                                  {workflowJobs[idx].map((j) => (
+                                    <span
+                                      key={j.job_id}
+                                      style={{
+                                        display: 'inline-block',
+                                        padding: '4px 8px',
+                                        background: '#eef2ff',
+                                        color: '#3730a3',
+                                        borderRadius: 9999,
+                                        fontSize: 12,
+                                        marginRight: 6,
+                                        marginBottom: 6,
+                                        border: '1px solid #e5e7eb',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {j.name} {j.jobCode || j.job_code || j.code ? `- ${j.jobCode || j.job_code || j.code}` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span style={{ color: '#6b7280' }}>-</span>
+                              )}
                             </div>
                             <div className="cell">
                               <span style={{ display: 'inline-block', minWidth: 28, textAlign: 'center', padding: '4px 8px', background: '#f3f4f6', borderRadius: 6, border: '1px solid #e5e7eb' }}>{idx + 1}</span>

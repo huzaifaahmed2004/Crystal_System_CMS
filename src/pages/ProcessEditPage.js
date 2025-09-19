@@ -8,6 +8,7 @@ import { getTasks } from '../services/taskService';
 import { getJobs } from '../services/jobService';
 import { getProcessWithRelations, updateProcess } from '../services/processService';
 import RichTextEditor from '../components/ui/RichTextEditor';
+import { getTaskWithRelations } from '../services/taskService';
 
 const ProcessEditPage = () => {
   const { setActiveSection } = useAppContext();
@@ -19,6 +20,7 @@ const ProcessEditPage = () => {
   const [companies, setCompanies] = React.useState([]);
   const [tasks, setTasks] = React.useState([]);
   const [jobs, setJobs] = React.useState([]);
+  const [workflowJobs, setWorkflowJobs] = React.useState([]); // per-row jobs for display
 
   const [processId, setProcessId] = React.useState(null);
   const [form, setForm] = React.useState({
@@ -62,6 +64,8 @@ const ProcessEditPage = () => {
             task_id: pt.task_id || pt.task?.task_id || '',
             job_id: (pt.task?.jobTasks && pt.task.jobTasks[0]?.job?.job_id) || pt.job_id || '',
           })));
+          // Populate jobs chip display per row
+          setWorkflowJobs(rows.map(pt => (Array.isArray(pt.task?.jobTasks) ? pt.task.jobTasks.map(jt => jt?.job).filter(Boolean) : [])));
         }
       } catch (e) {
         setError(e?.message || 'Failed to load process for editing');
@@ -75,23 +79,73 @@ const ProcessEditPage = () => {
 
   const handleChange = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
-  const addWorkflowRow = () => setWorkflow(prev => ([...prev, { task_id: '', job_id: '' }]));
-  const removeWorkflowRow = (index) => setWorkflow(prev => prev.filter((_, i) => i !== index));
+  const addWorkflowRow = () => {
+    setWorkflow(prev => ([...prev, { task_id: '', job_id: '' }]));
+    setWorkflowJobs(prev => ([...(Array.isArray(prev) ? prev : []), []]));
+  };
+  const removeWorkflowRow = (index) => {
+    setWorkflow(prev => prev.filter((_, i) => i !== index));
+    setWorkflowJobs(prev => (Array.isArray(prev) ? prev.filter((_, i) => i !== index) : []));
+  };
   const updateWorkflowRow = (index, key, value) => setWorkflow(prev => prev.map((row, i) => i === index ? { ...row, [key]: value } : row));
+
+  // When task changes, auto-select its first prelinked job if available
+  const handleTaskSelect = async (index, taskId) => {
+    setWorkflow(prev => prev.map((row, i) => i === index ? { ...row, task_id: taskId, job_id: '' } : row));
+    const idNum = Number(taskId);
+    if (!Number.isFinite(idNum) || idNum <= 0) return;
+    const cached = (tasks || []).find(t => Number(t.task_id || t.id) === idNum);
+    let jobsForTask = Array.isArray(cached?.jobTasks) ? cached.jobTasks.map(jt => jt?.job).filter(Boolean) : [];
+    let firstJobId = jobsForTask[0]?.job_id ?? null;
+    if (!jobsForTask.length) {
+      try {
+        const rel = await getTaskWithRelations(idNum);
+        jobsForTask = Array.isArray(rel?.jobTasks) ? rel.jobTasks.map(x => x?.job).filter(Boolean) : [];
+        firstJobId = jobsForTask[0]?.job_id ?? null;
+      } catch (_) {}
+    }
+    setWorkflowJobs(prev => {
+      const copy = Array.isArray(prev) ? [...prev] : [];
+      copy[index] = jobsForTask;
+      return copy;
+    });
+    if (firstJobId != null) {
+      setWorkflow(prev => prev.map((row, i) => i === index ? { ...row, job_id: String(firstJobId) } : row));
+    }
+  };
   const moveWorkflowRowUp = (index) => {
     if (index <= 0) return;
     setWorkflow(prev => {
       const copy = [...prev];
-      [copy[index - 1], copy[index]] = [copy[index], copy[index - 1]];
+      const temp = copy[index - 1];
+      copy[index - 1] = copy[index];
+      copy[index] = temp;
       return copy;
+    });
+    setWorkflowJobs(prev => {
+      const arr = Array.isArray(prev) ? [...prev] : [];
+      const tmp = arr[index - 1];
+      arr[index - 1] = arr[index];
+      arr[index] = tmp;
+      return arr;
     });
   };
   const moveWorkflowRowDown = (index) => {
     setWorkflow(prev => {
       if (index >= prev.length - 1) return prev;
       const copy = [...prev];
-      [copy[index + 1], copy[index]] = [copy[index], copy[index + 1]];
+      const temp = copy[index + 1];
+      copy[index + 1] = copy[index];
+      copy[index] = temp;
       return copy;
+    });
+    setWorkflowJobs(prev => {
+      const arr = Array.isArray(prev) ? [...prev] : [];
+      if (index >= arr.length - 1) return arr;
+      const tmp = arr[index + 1];
+      arr[index + 1] = arr[index];
+      arr[index] = tmp;
+      return arr;
     });
   };
 
@@ -221,7 +275,7 @@ const ProcessEditPage = () => {
                         ) : workflow.map((row, idx) => (
                           <div key={idx} className="roles-table-row" style={{ gridTemplateColumns: '1fr 1fr 90px 200px' }}>
                             <div className="cell">
-                              <select style={{ width: '100%' }} value={row.task_id} onChange={e => updateWorkflowRow(idx, 'task_id', e.target.value)}>
+                              <select style={{ width: '100%' }} value={row.task_id} onChange={e => handleTaskSelect(idx, e.target.value)}>
                                 <option value="">Select task</option>
                                 {tasks.map(t => (
                                   <option key={t.task_id || t.id} value={t.task_id || t.id}>
@@ -231,14 +285,31 @@ const ProcessEditPage = () => {
                               </select>
                             </div>
                             <div className="cell">
-                              <select style={{ width: '100%' }} value={row.job_id} onChange={e => updateWorkflowRow(idx, 'job_id', e.target.value)}>
-                                <option value="">Select job</option>
-                                {jobs.map(j => (
-                                  <option key={j.job_id || j.id} value={j.job_id || j.id}>
-                                    {j.name} {j.jobCode || j.job_code || j.code ? `- ${j.jobCode || j.job_code || j.code}` : ''}
-                                  </option>
-                                ))}
-                              </select>
+                              {Array.isArray(workflowJobs[idx]) && workflowJobs[idx].length > 0 ? (
+                                <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                                  {workflowJobs[idx].map((j) => (
+                                    <span
+                                      key={j.job_id}
+                                      style={{
+                                        display: 'inline-block',
+                                        padding: '4px 8px',
+                                        background: '#eef2ff',
+                                        color: '#3730a3',
+                                        borderRadius: 9999,
+                                        fontSize: 12,
+                                        marginRight: 6,
+                                        marginBottom: 6,
+                                        border: '1px solid #e5e7eb',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {j.name} {j.jobCode || j.job_code || j.code ? `- ${j.jobCode || j.job_code || j.code}` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span style={{ color: '#6b7280' }}>-</span>
+                              )}
                             </div>
                             <div className="cell">
                               <span style={{ display: 'inline-block', minWidth: 28, textAlign: 'center', padding: '4px 8px', background: '#f3f4f6', borderRadius: 6, border: '1px solid #e5e7eb' }}>{idx + 1}</span>
