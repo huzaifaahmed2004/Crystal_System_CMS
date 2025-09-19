@@ -114,8 +114,7 @@ const FloorDetailPage = () => {
     return list;
   }, [gridRows, gridCols, selectedBuilding, form]);
 
-  // Keep Functions/Subfunctions panel empty for now (no backend functions)
-  const functionNames = useMemo(() => [], []);
+  
 
   // Load jobs for the selected building's company to populate the modal dropdowns
   useEffect(() => {
@@ -264,6 +263,25 @@ const FloorDetailPage = () => {
     })();
     return () => { mounted = false; };
   }, [effectiveIsEdit, effectiveFloorId]);
+
+  // Derive Functions/Subfunctions from jobs assigned to tables on this floor
+  const functionNames = useMemo(() => {
+    const names = new Set();
+    (floorRooms || []).forEach((r) => {
+      const tables = Array.isArray(r?.tables) ? r.tables : [];
+      tables.forEach((t) => {
+        const tJobs = Array.isArray(t?.tableJobs)
+          ? t.tableJobs
+          : (Array.isArray(t?.table_job) ? t.table_job : []);
+        tJobs.forEach((tj) => {
+          const fnObj = tj?.job?.Function || tj?.Function || tj?.job?.function || null;
+          const label = fnObj?.name || fnObj?.functionName || fnObj?.functionCode || null;
+          if (label) names.add(String(label));
+        });
+      });
+    });
+    return Array.from(names);
+  }, [floorRooms]);
 
   // Load floor with relations on edit and pre-populate the layout state
   useEffect(() => {

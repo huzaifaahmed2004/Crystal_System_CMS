@@ -62,17 +62,34 @@ function normalizeFloorWithRelations(dto) {
   const base = normalizeFloor(dto);
   // Prefer 'rooms'; map from 'room' if present
   const rawRooms = Array.isArray(dto.rooms) ? dto.rooms : (Array.isArray(dto.room) ? dto.room : []);
-  const rooms = rawRooms.map((r) => ({
-    room_id: r?.room_id ?? r?.id,
-    room_code: r?.room_code ?? r?.roomCode ?? r?.code,
-    name: r?.name ?? '',
-    floor_id: r?.floor_id ?? r?.floorId ?? base.floor_id ?? null,
-    cellType: r?.cellType ?? r?.cell_type ?? '',
-    row: r?.row ?? r?.cell_row ?? null,
-    column: r?.column ?? r?.cell_column ?? null,
-    // Normalize nested table arrays if present
-    tables: Array.isArray(r?.tables) ? r.tables : (Array.isArray(r?.table) ? r.table : []),
-  }));
+  const rooms = rawRooms.map((r) => {
+    const rawTables = Array.isArray(r?.tables) ? r.tables : (Array.isArray(r?.table) ? r.table : []);
+    const tables = rawTables.map((t) => ({
+      table_id: t?.table_id ?? t?.id,
+      table_code: t?.table_code ?? t?.tableCode ?? t?.code,
+      name: t?.name ?? '',
+      room_id: t?.room_id ?? t?.roomId ?? (r?.room_id ?? r?.id),
+      capacity: Number(t?.capacity) || 0,
+      orientation: t?.orientation ?? '',
+      // map table_job -> tableJobs [{ job_id, job }]
+      tableJobs: (Array.isArray(t?.tableJobs) ? t.tableJobs : (Array.isArray(t?.table_job) ? t.table_job : []))
+        .map((tj) => ({
+          job_id: tj?.job_id ?? tj?.job?.job_id ?? null,
+          job: tj?.job ?? null,
+          assigned_at: tj?.assigned_at ?? null,
+        })),
+    }));
+    return {
+      room_id: r?.room_id ?? r?.id,
+      room_code: r?.room_code ?? r?.roomCode ?? r?.code,
+      name: r?.name ?? '',
+      floor_id: r?.floor_id ?? r?.floorId ?? base.floor_id ?? null,
+      cellType: r?.cellType ?? r?.cell_type ?? '',
+      row: r?.row ?? r?.cell_row ?? null,
+      column: r?.column ?? r?.cell_column ?? null,
+      tables,
+    };
+  });
   return { ...base, building: dto.building ?? null, rooms };
 }
 
