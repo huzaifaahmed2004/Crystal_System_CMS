@@ -50,10 +50,30 @@ export async function getFloorById(id) {
 export async function getFloorWithRelations(id) {
   try {
     const res = await api.get(`/floor/${id}/with-relations`);
-    return res || null;
+    return normalizeFloorWithRelations(res || null);
   } catch (e) {
     return null;
   }
+}
+
+// Normalize floor with relations
+function normalizeFloorWithRelations(dto) {
+  if (!dto || typeof dto !== 'object') return dto;
+  const base = normalizeFloor(dto);
+  // Prefer 'rooms'; map from 'room' if present
+  const rawRooms = Array.isArray(dto.rooms) ? dto.rooms : (Array.isArray(dto.room) ? dto.room : []);
+  const rooms = rawRooms.map((r) => ({
+    room_id: r?.room_id ?? r?.id,
+    room_code: r?.room_code ?? r?.roomCode ?? r?.code,
+    name: r?.name ?? '',
+    floor_id: r?.floor_id ?? r?.floorId ?? base.floor_id ?? null,
+    cellType: r?.cellType ?? r?.cell_type ?? '',
+    row: r?.row ?? r?.cell_row ?? null,
+    column: r?.column ?? r?.cell_column ?? null,
+    // Normalize nested table arrays if present
+    tables: Array.isArray(r?.tables) ? r.tables : (Array.isArray(r?.table) ? r.table : []),
+  }));
+  return { ...base, building: dto.building ?? null, rooms };
 }
 
 export async function createFloor(payload) {

@@ -14,17 +14,34 @@ export async function getTaskWithRelations(id) {
   try {
     // Preferred singular pattern
     const res = await api.get(`/task/${id}/with-relations`);
-    return res || null;
+    return normalizeTaskRelations(res || null);
   } catch (e) {
     // Optional fallback if backend also supports a plural style
     try {
       const res2 = await api.get(`/tasks/with-relations?task_id=${encodeURIComponent(id)}`);
-      if (Array.isArray(res2)) return res2[0] || null;
-      return res2 || null;
+      const one = Array.isArray(res2) ? (res2[0] || null) : (res2 || null);
+      return normalizeTaskRelations(one);
     } catch (err) {
       throw err;
     }
   }
+}
+
+// Normalize backend variations to a consistent shape for the UI
+function normalizeTaskRelations(dto) {
+  if (!dto || typeof dto !== 'object') return dto;
+  const out = { ...dto };
+  // Ensure taskSkills exists; map from task_skill if needed
+  if (!Array.isArray(out.taskSkills) && Array.isArray(out.task_skill)) {
+    out.taskSkills = out.task_skill.map((ts) => ({
+      ...ts,
+      // Ensure 'skill' object is present for UI access
+      skill: ts?.skill || (ts?.skill_name ? { name: ts.skill_name, description: null } : undefined),
+      // Map 'skill_level' -> 'level' for UI access
+      level: ts?.level || ts?.skill_level || undefined,
+    }));
+  }
+  return out;
 }
 
 export async function createTask(payload) {

@@ -35,15 +35,18 @@ const normalizeBuildingWithRelations = (dto) => {
     // floors in with-relations are an array of floor DTOs
     floors: Array.isArray(dto?.floors) ? dto.floors.map(normalizeFloor) : [],
     // include cells array if provided by backend
-    cells: Array.isArray(dto?.cells)
-      ? dto.cells.map((c) => ({
-          id: c?.id,
-          building_id: c?.building_id ?? base.building_id ?? null,
-          row: Number(c?.row),
-          column: Number(c?.column),
-          type: String(c?.type || '').toUpperCase(),
-        }))
-      : [],
+    cells: (() => {
+      const rawCells = Array.isArray(dto?.cells)
+        ? dto.cells
+        : (Array.isArray(dto?.building_cell) ? dto.building_cell : []);
+      return rawCells.map((c) => ({
+        id: c?.id,
+        building_id: c?.building_id ?? base.building_id ?? null,
+        row: Number(c?.row),
+        column: Number(c?.column),
+        type: String(c?.type || '').toUpperCase(),
+      }));
+    })(),
   };
 };
 
