@@ -204,8 +204,8 @@ class WhatIfDashboard {
 
       this.displayBestScenario(bestScenario);
       this.setupConstraintControls();
-      // Initialize impact preview with best scenario values
-      this.updateImpactPreview();
+      // Initialize Impact Preview to exactly match Best Scenario by default
+      this.updateImpactPreviewFromScenario(bestScenario.metrics);
 
       this.q('#bestScenario')?.classList.remove('hidden');
       this.q('#constraintAdjustment')?.classList.remove('hidden');
@@ -257,11 +257,6 @@ class WhatIfDashboard {
   }
 
   displayBestScenario(scenario) {
-    const hours = (Number(scenario.metrics.total_time_days || 0) * 8).toFixed(1);
-    this.q('#scenarioDuration').textContent = hours;
-    this.q('#scenarioCost').textContent = `$${scenario.metrics.total_cost.toLocaleString()}`;
-    this.q('#scenarioQuality').textContent = `${(scenario.metrics.quality_score * 100).toFixed(1)}`;
-
     const tbody = this.q('#allocationBody');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -297,6 +292,11 @@ class WhatIfDashboard {
       `;
       tbody.appendChild(row);
     });
+
+    // Update header metrics using the same totals we show in the table to keep them consistent
+    if (this.q('#scenarioDuration')) this.q('#scenarioDuration').textContent = totalHours.toFixed(1);
+    if (this.q('#scenarioCost')) this.q('#scenarioCost').textContent = `$${totalCost.toLocaleString()}`;
+    if (this.q('#scenarioQuality')) this.q('#scenarioQuality').textContent = `${(Number(scenario.metrics.quality_score || 0) * 100).toFixed(1)}`;
 
     const totalRow = document.createElement('div');
     totalRow.className = 'roles-table-row total';
