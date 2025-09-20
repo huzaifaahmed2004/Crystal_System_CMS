@@ -16,19 +16,13 @@ class ApiService {
       }
     } catch (_) {}
 
-    // Build headers without forcing Content-Type for GET/no-body requests
-    const baseHeaders = {
-      Accept: 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    };
-    const hasBody = options.body != null;
-    if (hasBody && !('Content-Type' in baseHeaders)) {
-      baseHeaders['Content-Type'] = 'application/json';
-    }
-
     const config = {
-      headers: baseHeaders,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
       ...options,
     };
 
