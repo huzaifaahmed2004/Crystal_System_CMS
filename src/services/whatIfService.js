@@ -11,7 +11,8 @@ const WHATIF_API_BASE = process.env.REACT_APP_WHATIF_API_URL
 // Optimize a predefined process by id or name (GET)
 export async function optimizeProcess(processRef) {
   if (!processRef) throw new Error('processRef is required');
-  const ref = String(processRef).trim();
+  const isNumericId = /^\d+$/.test(String(processRef));
+  const ref = isNumericId ? Number(processRef) : String(processRef).trim();
   const endpoint = `${WHATIF_API_BASE}/optimize/cms-process/${encodeURIComponent(ref)}`;
   return api.get(endpoint);
 }
