@@ -504,7 +504,7 @@ const ProcessCreationPage = () => {
                         <button type="button" onClick={() => setVizZoom((z) => { const nz = [...z]; nz[vizSlide] = Math.max(0.1, Math.min(2, nz[vizSlide] - 0.05)); if (nz[vizSlide] === 0.1) setVizOffset((off) => { const noff = [...off]; noff[vizSlide] = { x: 0, y: 0 }; return noff; }); return nz; })} title="Zoom Out" aria-label="Zoom Out">−</button>
                         <span className="po-zoom-level">{Math.round(vizZoom[vizSlide] * 100)}%</span>
                         <button type="button" onClick={() => setVizZoom((z) => { const nz = [...z]; nz[vizSlide] = Math.max(0.1, Math.min(2, nz[vizSlide] + 0.05)); return nz; })} title="Zoom In" aria-label="Zoom In">+</button>
-                        <button type="button" onClick={() => { setVizZoom((z) => { const nz = [...z]; nz[vizSlide] = vizSlide === 0 ? 0.44 : 0.35; return nz; }); setVizOffset((off) => { const noff = [...off]; noff[vizSlide] = { x: 0, y: 0 }; return noff; }); }} title="Reset" aria-label="Reset">Reset</button>
+                        <button type="button" onClick={() => { setVizZoom((z) => { const nz = [...z]; nz[vizSlide] = vizSlide === 0 ? 1 : 1; return nz; }); setVizOffset((off) => { const noff = [...off]; noff[vizSlide] = { x: 0, y: 0 }; return noff; }); }} title="Reset" aria-label="Reset">Reset</button>
                       </div>
                       <div className="dots">
                         <button className={`dot ${vizSlide === 0 ? 'active' : ''}`} onClick={() => setVizSlide(0)} aria-label="Slide 1" />
