@@ -21,7 +21,7 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
     if (['job-management', 'function-management', 'people-management'].includes(activeSection)) {
       setOpenOrganization(true);
     }
-    if (['what-if-analysis', 'ai-processes'].includes(activeSection)) {
+    if (['what-if-analysis', 'ai-processes', 'process-creation', 'process-visualization', 'process-optimization'].includes(activeSection)) {
       setOpenAI(true);
     }
   }, [activeSection]);
@@ -307,10 +307,26 @@ const Sidebar = ({ collapsed, activeSection, setActiveSection }) => {
                       </li>
                       <li className="nav-subitem">
                         <button
+                          className={`nav-subbutton ${activeSection === 'process-creation' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('process-creation')}
+                        >
+                          Process Creation
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
                           className={`nav-subbutton ${activeSection === 'process-optimization' ? 'active' : ''}`}
                           onClick={() => setActiveSection('process-optimization')}
                         >
                           Process Optimization
+                        </button>
+                      </li>
+                      <li className="nav-subitem">
+                        <button
+                          className={`nav-subbutton ${activeSection === 'process-visualization' ? 'active' : ''}`}
+                          onClick={() => setActiveSection('process-visualization')}
+                        >
+                          Process Visualization
                         </button>
                       </li>
                     </ul>

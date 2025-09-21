@@ -5,6 +5,7 @@ import ProcessManagementPage from '../pages/ProcessManagementPage';
 import ProcessViewPage from '../pages/ProcessViewPage';
 import ProcessCreatePage from '../pages/ProcessCreatePage';
 import ProcessEditPage from '../pages/ProcessEditPage';
+import ProcessCreationPage from '../pages/ProcessCreationPage';
 import TaskListTablePage from '../pages/TaskListTablePage';
 import TaskCreatePage from '../pages/TaskCreatePage';
 import JobManagementPage from '../pages/JobManagementPage';
@@ -34,6 +35,7 @@ import PeopleEditPage from '../pages/PeopleEditPage';
 import PeopleViewPage from '../pages/PeopleViewPage';
 import WhatIfAnalysisPage from '../pages/WhatIfAnalysisPage';
 import ProcessOptimizationPage from '../pages/ProcessOptimizationPage';
+import ProcessVisualizationPage from '../pages/ProcessVisualizationPage';
 import { AppProvider } from '../context/AppContext';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -95,6 +97,8 @@ const Dashboard = ({ user, onLogout }) => {
         return <ProcessCreatePage />;
       case 'process-edit':
         return <ProcessEditPage />;
+      case 'process-creation':
+        return <ProcessCreationPage />;
       case 'task-management':
         return <TaskListTablePage />;
       case 'task-create':
@@ -147,6 +151,8 @@ const Dashboard = ({ user, onLogout }) => {
         return <WhatIfAnalysisPage />;
       case 'process-optimization':
         return <ProcessOptimizationPage />;
+      case 'process-visualization':
+        return <ProcessVisualizationPage />;
       // Backward compatibility for persisted sessions/older ids
       case 'company-management':
       case 'organization-management':
