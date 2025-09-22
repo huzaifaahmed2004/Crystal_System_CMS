@@ -22,6 +22,9 @@ class WhatIfDashboard {
     this._processesLoading = false;
     this._processesLoaded = false;
     this.openMinTasksModal = typeof opts.openMinTasks === 'function' ? opts.openMinTasks : null;
+    // Track if the user has adjusted any constraint sliders/weights.
+    // When false, Impact Preview should mirror Best Scenario exactly.
+    this._userAdjusted = false;
   }
 
   mount() {
@@ -316,7 +319,44 @@ class WhatIfDashboard {
     this.renderedTabs = { resources: false, tasks: false };
     const activeBtn = this.q('.tab-btn.active');
     const active = activeBtn?.dataset?.tab || 'resources';
+    // Reset user-adjusted flag so initial render mirrors best scenario
+    this._userAdjusted = false;
+    
     this.ensureTabRendered(active);
+  }
+  
+  initializeConstraintsFromScenario() {
+    if (!this.currentScenario || !this.projectData) {
+      console.log('Cannot initialize constraints: missing scenario or project data');
+      return;
+    }
+    
+    const assignments = Array.isArray(this.currentScenario?.scenario?.assignments) ? 
+      this.currentScenario.scenario.assignments : [];
+    
+    console.log('Initializing constraints from scenario with', assignments.length, 'assignments');
+    
+    // For each task, set its duration based on the assignment hours
+    assignments.forEach(assignment => {
+      const task = this.projectData.tasks.find(t => t.id === assignment.task_id);
+      if (!task) return;
+      
+      const hours = Number(assignment?.hours_allocated || 0);
+      const durationMinutes = hours * 60;
+      
+      console.log(`Setting task ${task.id} duration to ${durationMinutes} minutes (${hours} hours)`);
+      
+      // Set the duration slider to match the assignment
+      const durationSlider = this.q(`#durationSlider-${task.id}`);
+      const durationLabel = this.q(`#duration-${task.id}`);
+      if (durationSlider) {
+        durationSlider.value = durationMinutes;
+        if (durationLabel) durationLabel.textContent = durationMinutes;
+        console.log(`Updated slider for task ${task.id}: ${durationSlider.value}`);
+      } else {
+        console.log(`Slider not found for task ${task.id}`);
+      }
+    });
   }
 
   ensureTabRendered(tab) {
@@ -358,14 +398,24 @@ class WhatIfDashboard {
     const container = this.q('#taskControls');
     if (!container) return;
     container.innerHTML = '';
+    
+    // Get current scenario assignments to use actual optimized hours
+    const assignments = Array.isArray(this.currentScenario?.scenario?.assignments) ? 
+      this.currentScenario.scenario.assignments : [];
+    
     this.projectData.tasks.forEach(task => {
+      // Find the assignment for this task to get the optimized hours
+      const assignment = assignments.find(a => a.task_id === task.id);
+      const assignmentHours = assignment ? Number(assignment.hours_allocated || 0) : task.duration_hours;
+      const assignmentMinutes = assignmentHours * 60;
+      
       const group = document.createElement('div');
       group.className = 'wif-control-group';
       group.innerHTML = `
         <h4>${task.name}</h4>
         <div class="slider-group">
-          <label>Duration (Minutes): <span id="duration-${task.id}">${task.duration_hours * 60}</span></label>
-          <input type="range" id="durationSlider-${task.id}" min="30" max="600" value="${task.duration_hours * 60}" class="slider" data-task="${task.id}" data-type="duration">
+          <label>Duration (Minutes): <span id="duration-${task.id}">${Math.round(assignmentMinutes)}</span></label>
+          <input type="range" id="durationSlider-${task.id}" min="1" max="600" value="${Math.round(assignmentMinutes)}" class="slider" data-task="${task.id}" data-type="duration">
         </div>
         <div class="slider-group">
           <label>Priority: <span id="priority-${task.id}">Normal</span></label>
@@ -392,7 +442,19 @@ class WhatIfDashboard {
       const priorities = ['Very Low', 'Low', 'Normal', 'High', 'Critical'];
       this.q(`#priority-${el.dataset.task}`).textContent = priorities[value - 1];
     }
-    this.updateImpactPreview();
+    
+    // Only mark as user-adjusted for non-parallel changes
+    // Parallel execution is a scheduling optimization that doesn't affect cost/preference calculations
+    if (el.dataset.type !== 'parallel') {
+      this._userAdjusted = true;
+    }
+    
+    // For parallel changes, update impact preview without preference adjustments
+    if (el.dataset.type === 'parallel') {
+      this.updateImpactPreviewForParallelChange();
+    } else {
+      this.updateImpactPreview();
+    }
   }
 
   updatePriorities() {
@@ -409,10 +471,18 @@ class WhatIfDashboard {
     this.q('#timeValue').textContent = `${time}%`;
     this.q('#costValue').textContent = `${cost}%`;
     this.q('#qualityValue').textContent = `${this.q('#qualityPriority').value}%`;
+    // Mark as user interaction so heuristics are applied from this point
+    this._userAdjusted = true;
     this.updateImpactPreview();
+    this.updatePreferenceAllocation();
   }
 
   updateImpactPreview() {
+    // If preferences have generated a new allocation, don't override it with heuristics
+    if (this.q('#preferenceAllocationTable') && !this.q('#preferenceAllocationTable').classList.contains('hidden')) {
+      return; // Let preference allocation control the Impact Preview
+    }
+
     // Use best scenario as baseline if available, otherwise use impactPreviewScenario
     if (!this.projectData || (!this.bestScenarioBaseline && !this.impactPreviewScenario)) {
       const d = this.q('#impactDuration');
@@ -422,148 +492,163 @@ class WhatIfDashboard {
       return;
     }
 
-    // Use best scenario baseline or fallback to impactPreviewScenario
-    const baseMetrics = this.bestScenarioBaseline || this.impactPreviewScenario?.metrics || this.impactPreviewScenario;
-    const baselineDurationDays = baseMetrics.total_time_days || baseMetrics.total_duration_days || 0;
-    const baselineCost = baseMetrics.total_cost || 0;
+    // Start with current scenario assignments and apply constraint changes directly
+    const assignments = Array.isArray(this.currentScenario?.scenario?.assignments) ? this.currentScenario.scenario.assignments : [];
+    const tasksArr = Array.isArray(this.projectData?.tasks) ? this.projectData.tasks : [];
+    const resourcesArr = Array.isArray(this.projectData?.resources) ? this.projectData.resources : [];
 
-    // === TIME CALCULATION (start from Best Scenario baseline) ===
+    let totalCost = 0;
+    const taskInfos = [];
     
-    // Start with Best Scenario baseline in minutes (0.8 hours = 48 minutes)
-    let estimatedDurationMinutes = baselineDurationDays * 8 * 60; // Convert days to minutes
-    
-    // Calculate task duration changes from baseline
-    let totalCurrentMinutes = 0;
-    let totalBaselineMinutes = 0;
-    const parallelTasks = [];
-    const sequentialTasks = [];
-    
-    this.projectData.tasks.forEach(task => {
-      const durationSlider = this.q(`#durationSlider-${task.id}`);
-      const parallelCheckbox = this.q(`#parallel-${task.id}`);
-      
-      // Use actual task duration from CMS data, not mock values
-      const baselineDurationMinutes = (task.duration_hours || 8) * 60;
-      const currentDurationMinutes = durationSlider ? parseFloat(durationSlider.value) : baselineDurationMinutes;
-      
-      totalBaselineMinutes += baselineDurationMinutes;
-      
-      const isParallel = parallelCheckbox ? parallelCheckbox.checked : false;
-      if (isParallel) {
-        parallelTasks.push(currentDurationMinutes);
-      } else {
-        sequentialTasks.push(currentDurationMinutes);
-        totalCurrentMinutes += currentDurationMinutes;
-      }
-    });
-    
-    // Add parallel task time (max of parallel tasks)
-    if (parallelTasks.length > 0) {
-      const maxParallelDuration = Math.max(...parallelTasks);
-      totalCurrentMinutes += maxParallelDuration;
-    }
-    
-    // Apply proportional change from baseline
-    if (totalBaselineMinutes > 0) {
-      const taskRatio = totalCurrentMinutes / totalBaselineMinutes;
-      estimatedDurationMinutes *= taskRatio;
-    }
-    
-    // 2. Apply resource hours/day changes (affects productivity/duration)
-    let totalOriginalHours = 0;
-    let totalNewHours = 0;
-    this.projectData.resources.forEach(resource => {
-      const hoursSlider = this.q(`#hoursSlider-${resource.id}`);
-      const originalHours = resource.max_hours_per_day || 8;
-      const newHours = hoursSlider ? parseFloat(hoursSlider.value) : originalHours;
-      totalOriginalHours += originalHours;
-      totalNewHours += newHours;
-    });
-    
-    if (totalNewHours > 0 && totalOriginalHours > 0) {
-      // More hours per day = shorter duration
-      const hoursRatio = totalOriginalHours / totalNewHours;
-      estimatedDurationMinutes *= hoursRatio;
-    }
-    
-    // Parallel execution is already calculated above, no additional savings needed
-    
-    // === COST CALCULATION (affected by: hourly rates, task priority) ===
-    let estimatedCost = baselineCost;
-    
-    // 1. Apply resource rate changes
-    let rateMultiplier = 1.0;
-    let resourceCount = 0;
-    this.projectData.resources.forEach(resource => {
-      const rateSlider = this.q(`#rateSlider-${resource.id}`);
-      if (rateSlider) {
-        const originalRate = resource.hourly_rate || 85;
-        const newRate = parseFloat(rateSlider.value);
-        rateMultiplier += (newRate / originalRate - 1);
-        resourceCount++;
-      }
-    });
-    
-    if (resourceCount > 0) {
-      // Average the rate changes
-      rateMultiplier = 1 + (rateMultiplier / resourceCount);
-      estimatedCost *= rateMultiplier;
-    }
-    
-    // 2. Apply task priority cost adjustments
-    let priorityCostMultiplier = 0;
-    let taskCount = 0;
-    this.projectData.tasks.forEach(task => {
-      const prioritySlider = this.q(`#prioritySlider-${task.id}`);
-      const priority = prioritySlider ? parseInt(prioritySlider.value) : 3;
-      
-      // Priority affects resource tier and thus cost
-      const priorityMultipliers = {
-        1: 0.7,   // Very Low - junior resources
-        2: 0.85,  // Low
-        3: 1.0,   // Normal
-        4: 1.25,  // High - senior resources
-        5: 1.5    // Critical - expert resources
+
+    assignments.forEach(assignment => {
+      const task = tasksArr.find(t => t.id === assignment.task_id) || {
+        id: assignment.task_id,
+        name: this.taskNames?.[assignment.task_id] || assignment.task_id
       };
+      const resource = resourcesArr.find(r => r.id === assignment.resource_id) || {
+        id: assignment.resource_id,
+        name: this.resourceNames?.[assignment.resource_id] || assignment.resource_id,
+        hourly_rate: 85
+      };
+
+      // Get current constraint values
+      const durationSlider = this.q(`#durationSlider-${task.id}`);
+      const prioritySlider = this.q(`#prioritySlider-${task.id}`);
+      const parallelCheckbox = this.q(`#parallel-${task.id}`);
+      const rateSlider = this.q(`#rateSlider-${resource.id}`);
+      const hoursSlider = this.q(`#hoursSlider-${resource.id}`);
+
+      // Calculate adjusted hours for this assignment
+      let adjustedHours = Number(assignment?.hours_allocated || 0);
+
+      // For duration changes, we should compare against the baseline assignment hours, not task.duration_hours
+      // The baseline assignment hours are what we started with after optimization
+      if (durationSlider) {
+        const baselineHours = Number(assignment?.hours_allocated || 0);
+        const baselineMinutes = baselineHours * 60;
+        const newDurationMinutes = parseFloat(durationSlider.value);
+        
+        // Only apply ratio if there's an actual change from baseline
+        if (baselineMinutes > 0 && Math.abs(newDurationMinutes - baselineMinutes) > 0.01) {
+          const durationRatio = newDurationMinutes / baselineMinutes;
+          adjustedHours *= durationRatio;
+        }
+      }
+
+      // Apply priority adjustments (higher priority = more efficient = less time)
+      if (prioritySlider) {
+        const priority = parseInt(prioritySlider.value);
+        const priorityMultipliers = { 1: 1.2, 2: 1.1, 3: 1.0, 4: 0.9, 5: 0.8 };
+        adjustedHours *= (priorityMultipliers[priority] || 1.0);
+      }
+
+      // Apply resource productivity changes (more hours/day = higher productivity = less time needed)
+      if (hoursSlider) {
+        const originalHours = resource.max_hours_per_day || 8;
+        const newHours = parseFloat(hoursSlider.value);
+        const productivityRatio = originalHours / newHours; // Inverse relationship
+        adjustedHours *= productivityRatio;
+      }
+
+      // Calculate cost with adjusted rate (parallel execution doesn't affect cost)
+      const adjustedRate = rateSlider ? parseFloat(rateSlider.value) : (resource.hourly_rate || 85);
       
-      const multiplier = priorityMultipliers[priority] || 1.0;
-      priorityCostMultiplier += multiplier;
-      taskCount++;
+      // For cost calculation, use the adjusted hours (duration/priority/productivity adjustments only)
+      // Parallel execution does NOT affect the cost - tasks still require the same work hours
+      const assignmentCost = adjustedHours * adjustedRate;
+      
+      
+
+      // Store task info for parallel time calculation
+      taskInfos.push({
+        taskId: task.id,
+        hours: adjustedHours, // This is the actual work hours needed for time calculation
+        cost: assignmentCost, // Cost is independent of parallel scheduling
+        isParallel: parallelCheckbox && parallelCheckbox.checked
+      });
+
+      // Cost is always the sum of all work hours * rates, regardless of parallel scheduling
+      totalCost += assignmentCost;
     });
+
+    // Calculate total project time considering parallel execution
+    let totalHours = this.calculateProjectDuration(taskInfos);
     
-    if (taskCount > 0) {
-      // Average priority multiplier, compare to baseline (normal = 1.0)
-      const avgPriorityMultiplier = priorityCostMultiplier / taskCount;
-      estimatedCost *= avgPriorityMultiplier;
+
+    // Only apply preference adjustments if user has interacted with preferences
+    // and this is not a parallel-only change
+    if (this._userAdjusted && !this._isParallelOnlyChange) {
+      let pTime = Number(this.q('#timePriority')?.value || 33) / 100;
+      let pCost = Number(this.q('#costPriority')?.value || 33) / 100;
+      let pQual = Number(this.q('#qualityPriority')?.value || 34) / 100;
+      const pSum = pTime + pCost + pQual;
+      if (pSum > 0) { pTime /= pSum; pCost /= pSum; pQual /= pSum; }
+
+      // Apply moderate preference adjustments
+      const tilt = pTime - pCost;
+      const timeAdj = 1 - 0.1 * tilt; // Reduced from 0.2 to 0.1 for stability
+      const costAdj = 1 + 0.1 * tilt;
+      const qualTimeAdj = 1 + 0.02 * pQual; // Reduced from 0.05 to 0.02
+      const qualCostAdj = 1 + 0.05 * pQual; // Reduced from 0.10 to 0.05
+
+      totalHours = Math.max(0.1, totalHours * timeAdj * qualTimeAdj);
+      totalCost = Math.max(0, totalCost * costAdj * qualCostAdj);
     }
-    
-    // === APPLY PREFERENCES (heuristic) ===
-    // Interpret sliders as weights that tilt the tradeoff between time and cost
-    // Sum is maintained near 1 in updatePriorities(), but we normalize defensively
-    let pTime = Number(this.q('#timePriority')?.value || 33) / 100;
-    let pCost = Number(this.q('#costPriority')?.value || 33) / 100;
-    let pQual = Number(this.q('#qualityPriority')?.value || 34) / 100;
-    const pSum = pTime + pCost + pQual;
-    if (pSum > 0) { pTime /= pSum; pCost /= pSum; pQual /= pSum; }
-    
-    // Time vs Cost tilt: more time priority reduces duration but may increase cost; more cost priority does the opposite.
-    const tilt = pTime - pCost; // [-1..1]
-    const timeAdj = 1 - 0.2 * tilt; // up to -20% duration for max time priority
-    const costAdj = 1 + 0.2 * tilt; // up to +20% cost for max time priority
-    
-    // Quality tends to increase both time and cost a bit
-    const qualTimeAdj = 1 + 0.05 * pQual;  // up to +5%
-    const qualCostAdj = 1 + 0.10 * pQual;  // up to +10%
-    
-    // Apply adjustments with lower bound protection
-    estimatedDurationMinutes = Math.max(1, estimatedDurationMinutes * timeAdj * qualTimeAdj);
-    estimatedCost = Math.max(0, estimatedCost * costAdj * qualCostAdj);
-    
+
     // Update display
+    const durationMinutes = totalHours * 60;
     const impactDurationEl = this.q('#impactDuration');
     const impactCostEl = this.q('#impactCost');
-    if (impactDurationEl) impactDurationEl.textContent = `${Math.max(1, estimatedDurationMinutes).toFixed(0)} minutes`;
-    if (impactCostEl) impactCostEl.textContent = `$${Math.round(Math.max(0, estimatedCost)).toLocaleString()}`;
+    if (impactDurationEl) impactDurationEl.textContent = `${Math.round(durationMinutes)} minutes`;
+    if (impactCostEl) impactCostEl.textContent = `$${Math.round(totalCost).toLocaleString()}`;
+  }
+
+  updateImpactPreviewForParallelChange() {
+    // Set flag to indicate this is a parallel-only change
+    this._isParallelOnlyChange = true;
+    
+    // Store current values before update to compare
+    const beforeCost = this.q('#impactCost')?.textContent || '$0';
+    const beforeTime = this.q('#impactDuration')?.textContent || '0 minutes';
+    
+    console.log('PARALLEL CHANGE - Before update:', { cost: beforeCost, time: beforeTime });
+    this.updateImpactPreview();
+    
+    // Check values after update
+    const afterCost = this.q('#impactCost')?.textContent || '$0';
+    const afterTime = this.q('#impactDuration')?.textContent || '0 minutes';
+    console.log('PARALLEL CHANGE - After update:', { cost: afterCost, time: afterTime });
+    
+    // Reset flag after update
+    this._isParallelOnlyChange = false;
+  }
+
+  calculateProjectDuration(taskInfos) {
+    // If no tasks marked as parallel, just sum all hours
+    const allParallel = taskInfos.filter(task => task.isParallel);
+    
+    
+    if (allParallel.length < 2) {
+      // Less than 2 parallel tasks: all tasks run sequentially
+      const totalHours = taskInfos.reduce((sum, task) => sum + task.hours, 0);
+      return totalHours;
+    }
+    
+    // 2 or more parallel tasks: they can run simultaneously
+    const parallelTasks = taskInfos.filter(task => task.isParallel);
+    const sequentialTasks = taskInfos.filter(task => !task.isParallel);
+    
+    // Sequential tasks: sum all hours
+    const sequentialHours = sequentialTasks.reduce((sum, task) => sum + task.hours, 0);
+    
+    // Parallel tasks: take the maximum duration
+    const maxParallelHours = Math.max(...parallelTasks.map(task => task.hours));
+    
+    const totalProjectHours = sequentialHours + maxParallelHours;
+    
+    
+    return totalProjectHours;
   }
 
   calculateParallelDuration(taskConfigs) {
@@ -602,10 +687,259 @@ class WhatIfDashboard {
   }
 
   updateImpactPreviewFromScenario(metrics) {
-    // Convert days to minutes for consistency with updateImpactPreview() output
-    const durationMinutes = (metrics.total_time_days * 8 * 60); // 8 hours/day * 60 min/hour
+    // When initially setting from Best Scenario, all tasks are sequential (no parallel by default)
+    // This method is called right after optimization when no checkboxes are checked yet
+    let totalHours = 0;
+    let totalCost = 0;
+    const assignments = Array.isArray(this.currentScenario?.scenario?.assignments) ? this.currentScenario.scenario.assignments : [];
+    const tasksArr = Array.isArray(this.projectData?.tasks) ? this.projectData.tasks : [];
+    const resourcesArr = Array.isArray(this.projectData?.resources) ? this.projectData.resources : [];
+    
+    assignments.forEach(assignment => {
+      const resource = resourcesArr.find(r => r.id === assignment.resource_id) || {
+        id: assignment.resource_id,
+        name: this.resourceNames?.[assignment.resource_id] || assignment.resource_id,
+        hourly_rate: 85
+      };
+      const hours = Number(assignment?.hours_allocated || 0);
+      const cost = hours * Number(resource.hourly_rate || 85);
+      totalHours += hours;
+      totalCost += cost;
+    });
+    
+    // Convert to minutes for Impact Preview display
+    const durationMinutes = totalHours * 60;
     this.q('#impactDuration').textContent = `${Math.round(durationMinutes)} minutes`;
-    this.q('#impactCost').textContent = `$${Math.round(metrics.total_cost).toLocaleString()}`;
+    this.q('#impactCost').textContent = `$${Math.round(totalCost).toLocaleString()}`;
+  }
+
+  updatePreferenceAllocation() {
+    if (!this.projectData || !this.currentScenario) return;
+
+    const pTime = Number(this.q('#timePriority')?.value || 33) / 100;
+    const pCost = Number(this.q('#costPriority')?.value || 33) / 100;
+    const pQual = Number(this.q('#qualityPriority')?.value || 34) / 100;
+
+    // Generate new allocation based on preferences
+    const newAllocations = this.generatePreferenceBasedAllocation(pTime, pCost, pQual);
+    this.displayPreferenceAllocation(newAllocations);
+  }
+
+  generatePreferenceBasedAllocation(pTime, pCost, pQual) {
+    const tasksArr = Array.isArray(this.projectData?.tasks) ? this.projectData.tasks : [];
+    const resourcesArr = Array.isArray(this.projectData?.resources) ? this.projectData.resources : [];
+    const originalAssignments = Array.isArray(this.currentScenario?.scenario?.assignments) ? this.currentScenario.scenario.assignments : [];
+
+    if (!resourcesArr.length) return [];
+
+    const newAllocations = [];
+    const resourceUsage = new Map(); // Track resource workload for better distribution
+
+    // Initialize resource usage tracking
+    resourcesArr.forEach(resource => {
+      resourceUsage.set(resource.id, 0);
+    });
+
+    tasksArr.forEach((task, taskIndex) => {
+      // Find original assignment for this task
+      const originalAssignment = originalAssignments.find(a => a.task_id === task.id);
+      if (!originalAssignment) return;
+
+      // Get current task constraints
+      const durationSlider = this.q(`#durationSlider-${task.id}`);
+      const prioritySlider = this.q(`#prioritySlider-${task.id}`);
+      const parallelCheckbox = this.q(`#parallel-${task.id}`);
+      
+      const taskDurationMinutes = durationSlider ? parseFloat(durationSlider.value) : (task.duration_hours || 8) * 60;
+      const taskPriority = prioritySlider ? parseInt(prioritySlider.value) : 3;
+      const allowParallel = parallelCheckbox ? parallelCheckbox.checked : false;
+
+      // Select resource based on preferences and load balancing
+      let selectedResource;
+      let allocatedHours;
+
+      if (pTime > pCost && pTime > pQual) {
+        // Time priority: use fastest/most expensive resources, reduce hours
+        selectedResource = this.selectResourceByEfficiency(resourcesArr, 'time', resourceUsage, taskIndex);
+        allocatedHours = (taskDurationMinutes / 60) * 0.8; // 20% time reduction
+      } else if (pCost > pTime && pCost > pQual) {
+        // Cost priority: use cheaper resources, may take longer
+        selectedResource = this.selectResourceByEfficiency(resourcesArr, 'cost', resourceUsage, taskIndex);
+        allocatedHours = (taskDurationMinutes / 60) * 1.1; // 10% time increase for cost savings
+      } else {
+        // Quality priority: use balanced/senior resources
+        selectedResource = this.selectResourceByEfficiency(resourcesArr, 'quality', resourceUsage, taskIndex);
+        allocatedHours = taskDurationMinutes / 60; // Standard time
+      }
+
+      // Apply priority adjustments
+      const priorityMultipliers = { 1: 1.2, 2: 1.1, 3: 1.0, 4: 0.9, 5: 0.8 };
+      allocatedHours *= (priorityMultipliers[taskPriority] || 1.0);
+
+      // Note: Parallel execution affects scheduling/time but NOT the work hours or cost
+      // Each task still requires the same amount of work regardless of parallel execution
+
+      // Update resource usage tracking
+      resourceUsage.set(selectedResource.id, resourceUsage.get(selectedResource.id) + allocatedHours);
+
+      // Cost calculation uses the full allocated hours - parallel execution doesn't reduce work required
+      const cost = allocatedHours * (selectedResource.hourly_rate || 85);
+
+      newAllocations.push({
+        task_id: task.id,
+        task_name: task.name,
+        resource_id: selectedResource.id,
+        resource_name: selectedResource.name,
+        hours_allocated: Math.max(0.1, allocatedHours), // Minimum 0.1 hours
+        hourly_rate: selectedResource.hourly_rate || 85,
+        total_cost: cost,
+        start_time: originalAssignment.start_time || 0,
+        priority: taskPriority,
+        parallel: allowParallel
+      });
+    });
+
+    return newAllocations;
+  }
+
+  selectResourceByEfficiency(resources, priority, resourceUsage, taskIndex) {
+    if (!resources.length) return { id: 'default', name: 'Default Resource', hourly_rate: 85 };
+
+    // Create a pool of suitable resources based on priority
+    let candidateResources = [];
+
+    switch (priority) {
+      case 'time':
+        // Sort by rate (highest first) and take top 50% for time efficiency
+        const sortedByRate = [...resources].sort((a, b) => (b.hourly_rate || 85) - (a.hourly_rate || 85));
+        candidateResources = sortedByRate.slice(0, Math.max(1, Math.ceil(sortedByRate.length / 2)));
+        break;
+      case 'cost':
+        // Sort by rate (lowest first) and take bottom 50% for cost efficiency
+        const sortedByCost = [...resources].sort((a, b) => (a.hourly_rate || 85) - (b.hourly_rate || 85));
+        candidateResources = sortedByCost.slice(0, Math.max(1, Math.ceil(sortedByCost.length / 2)));
+        break;
+      case 'quality':
+      default:
+        // Use all resources for quality (balanced approach)
+        candidateResources = [...resources];
+        break;
+    }
+
+    // Among candidates, select the one with least current workload
+    // If workloads are equal, use round-robin based on task index
+    let selectedResource = candidateResources[0];
+    let minWorkload = resourceUsage.get(selectedResource.id) || 0;
+
+    candidateResources.forEach((resource, index) => {
+      const workload = resourceUsage.get(resource.id) || 0;
+      if (workload < minWorkload || (workload === minWorkload && (taskIndex + index) % candidateResources.length === 0)) {
+        selectedResource = resource;
+        minWorkload = workload;
+      }
+    });
+
+    return selectedResource;
+  }
+
+  displayPreferenceAllocation(allocations) {
+    const container = this.q('#preferenceAllocationTable');
+    if (!container) {
+      // Create the table container if it doesn't exist
+      this.createPreferenceAllocationTable();
+      return this.displayPreferenceAllocation(allocations);
+    }
+
+    const tbody = container.querySelector('.preference-allocation-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    let totalHours = 0;
+    let totalCost = 0;
+
+    allocations.forEach(allocation => {
+      totalHours += allocation.hours_allocated;
+      totalCost += allocation.total_cost;
+
+      const row = document.createElement('div');
+      row.className = 'roles-table-row';
+      row.style.gridTemplateColumns = '2fr 1.5fr 1fr 1fr 1fr 1fr';
+      row.innerHTML = `
+        <div class="cell">${allocation.task_name}</div>
+        <div class="cell">${allocation.resource_name}</div>
+        <div class="cell">${allocation.hours_allocated.toFixed(1)}h</div>
+        <div class="cell">$${allocation.hourly_rate}/hr</div>
+        <div class="cell">$${Math.round(allocation.total_cost).toLocaleString()}</div>
+        <div class="cell">${allocation.parallel ? 'Parallel' : 'Sequential'}</div>
+      `;
+      tbody.appendChild(row);
+    });
+
+    // Calculate project duration considering parallel execution
+    const taskInfos = allocations.map(allocation => ({
+      taskId: allocation.task_id,
+      hours: allocation.hours_allocated,
+      cost: allocation.total_cost,
+      isParallel: allocation.parallel
+    }));
+    const projectDuration = this.calculateProjectDuration(taskInfos);
+    
+    // Add total row
+    const totalRow = document.createElement('div');
+    totalRow.className = 'roles-table-row total';
+    totalRow.style.gridTemplateColumns = '2fr 1.5fr 1fr 1fr 1fr 1fr';
+    totalRow.innerHTML = `
+      <div class="cell"><strong>TOTAL</strong></div>
+      <div class="cell">-</div>
+      <div class="cell"><strong>${totalHours.toFixed(1)}h</strong></div>
+      <div class="cell">-</div>
+      <div class="cell"><strong>$${Math.round(totalCost).toLocaleString()}</strong></div>
+      <div class="cell">${projectDuration.toFixed(1)}h (${(projectDuration / 8).toFixed(1)} days)</div>
+    `;
+    tbody.appendChild(totalRow);
+
+    // Show the table
+    container.classList.remove('hidden');
+
+    // Update Impact Preview with the new allocation totals (use project duration for time)
+    this.updateImpactPreviewFromAllocation(projectDuration, totalCost);
+  }
+
+  createPreferenceAllocationTable() {
+    const preferencesTab = this.q('#preferencesTab');
+    if (!preferencesTab) return;
+
+    const tableHtml = `
+      <div id="preferenceAllocationTable" class="hidden" style="margin-top: 20px;">
+        <h4 style="margin-bottom: 12px; color: #111827;">Optimized Resource Allocation</h4>
+        <div class="roles-table">
+          <div class="roles-table-header" style="grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1fr;">
+            <div class="cell">Task</div>
+            <div class="cell">Resource</div>
+            <div class="cell">Hours</div>
+            <div class="cell">Rate</div>
+            <div class="cell">Cost</div>
+            <div class="cell">Execution</div>
+          </div>
+          <div class="preference-allocation-body as-table"></div>
+        </div>
+      </div>
+    `;
+
+    preferencesTab.insertAdjacentHTML('beforeend', tableHtml);
+  }
+
+  updateImpactPreviewFromAllocation(totalHours, totalCost) {
+    // Convert hours to minutes for Impact Preview display
+    const durationMinutes = totalHours * 60;
+    
+    // Update Impact Preview with the new allocation values
+    const impactDurationEl = this.q('#impactDuration');
+    const impactCostEl = this.q('#impactCost');
+    
+    if (impactDurationEl) impactDurationEl.textContent = `${Math.round(durationMinutes)} minutes`;
+    if (impactCostEl) impactCostEl.textContent = `$${Math.round(totalCost).toLocaleString()}`;
   }
 
   async updateScenario() {
@@ -707,6 +1041,10 @@ class WhatIfDashboard {
 
   resetScenario() {
     if (!this.originalScenario && !this.bestScenarioBaseline && !this.currentScenario) return;
+    
+    // Reset user interaction flag so Impact Preview mirrors Best Scenario exactly
+    this._userAdjusted = false;
+    
     // Build a safe scenario using original metrics and existing assignments (if any)
     const orig = this.originalScenario?.metrics || this.bestScenarioBaseline || {};
     const existingAssignments = Array.isArray(this.currentScenario?.scenario?.assignments)
@@ -722,11 +1060,8 @@ class WhatIfDashboard {
       }
     };
     this.currentScenario = restored;
-    this.displayBestScenario(restored);
-    this.updateImpactPreviewFromScenario(restored.metrics);
-    // Update Impact Preview to reflect the reset baseline (recalculate with default constraints)
-    this.updateImpactPreview();
-    // Reset ALL inputs to defaults
+    
+    // Reset ALL inputs to defaults FIRST
     // 1. Reset preferences to defaults
     const timePri = this.q('#timePriority'), costPri = this.q('#costPriority'), qualPri = this.q('#qualityPriority');
     if (timePri) { timePri.value = 33; this.q('#timeValue').textContent = '33%'; }
@@ -752,21 +1087,51 @@ class WhatIfDashboard {
         if (par) par.checked = false;
       });
     }
-    // Rebuild comparison table with both sides equal to original
+    
+    // Hide preference allocation table if visible
+    const prefTable = this.q('#preferenceAllocationTable');
+    if (prefTable) prefTable.classList.add('hidden');
+    
+    // Update displays AFTER resetting inputs
+    this.displayBestScenario(restored);
+    this.updateImpactPreviewFromScenario(restored.metrics);
+    
+    // Rebuild comparison table with both sides equal to Best Scenario baseline
     const tbody = this.q('#comparisonBody');
     const wrapper = this.q('#comparisonTable');
     if (tbody && wrapper && this.bestScenarioBaseline) {
       tbody.innerHTML = '';
-      const baselineMinutes = Number(this.bestScenarioBaseline.total_time_days || 0) * 8 * 60;
-      const baselineCost = Number(this.bestScenarioBaseline.total_cost || 0);
+      
+      // Calculate baseline values from actual assignments (same as Best Scenario display)
+      let baselineHours = 0;
+      let baselineCost = 0;
+      const assignments = Array.isArray(this.currentScenario?.scenario?.assignments) ? this.currentScenario.scenario.assignments : [];
+      const tasksArr = Array.isArray(this.projectData?.tasks) ? this.projectData.tasks : [];
+      const resourcesArr = Array.isArray(this.projectData?.resources) ? this.projectData.resources : [];
+      
+      assignments.forEach(assignment => {
+        const resource = resourcesArr.find(r => r.id === assignment.resource_id) || {
+          id: assignment.resource_id,
+          name: this.resourceNames?.[assignment.resource_id] || assignment.resource_id,
+          hourly_rate: 85
+        };
+        const hours = Number(assignment?.hours_allocated || 0);
+        const cost = hours * Number(resource.hourly_rate || 85);
+        baselineHours += hours;
+        baselineCost += cost;
+      });
+      
+      const baselineMinutes = baselineHours * 60;
       const baselineQualityPct = Number(this.bestScenarioBaseline.quality_score || 0) * 100;
       const baselineUtilPct = Number(this.bestScenarioBaseline.resource_utilization || 0) * 100;
+      
       const metrics = [
         { label: 'Duration (minutes)', original: baselineMinutes, current: baselineMinutes },
         { label: 'Total Cost', original: baselineCost, current: baselineCost },
         { label: 'Quality Score', original: baselineQualityPct, current: baselineQualityPct },
         { label: 'Resource Utilization', original: baselineUtilPct, current: baselineUtilPct },
       ];
+      
       metrics.forEach(m => {
         const diff = 0;
         const pct = '0.0';
