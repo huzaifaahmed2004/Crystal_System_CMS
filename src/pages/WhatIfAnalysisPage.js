@@ -478,10 +478,8 @@ class WhatIfDashboard {
   }
 
   updateImpactPreview() {
-    // If preferences have generated a new allocation, don't override it with heuristics
-    if (this.q('#preferenceAllocationTable') && !this.q('#preferenceAllocationTable').classList.contains('hidden')) {
-      return; // Let preference allocation control the Impact Preview
-    }
+    // Note: Always update impact preview to show preference adjustments
+    // The preference allocation table shows detailed breakdown, but impact preview shows adjusted totals
 
     // Use best scenario as baseline if available, otherwise use impactPreviewScenario
     if (!this.projectData || (!this.bestScenarioBaseline && !this.impactPreviewScenario)) {
@@ -536,11 +534,21 @@ class WhatIfDashboard {
         }
       }
 
-      // Apply priority adjustments (higher priority = more efficient = less time)
+      // Apply task priority adjustments
+      // TASK PRIORITY SYSTEM: Higher task priority = premium resources/skills = higher cost but faster execution
+      // Priority 1 (Very Low): 20% more time, 20% less cost (basic resources)
+      // Priority 3 (Normal): baseline time and cost
+      // Priority 5 (Critical): 20% less time, 30% more cost (premium resources)
+      let taskPriorityRateMultiplier = 1.0;
       if (prioritySlider) {
         const priority = parseInt(prioritySlider.value);
-        const priorityMultipliers = { 1: 1.2, 2: 1.1, 3: 1.0, 4: 0.9, 5: 0.8 };
-        adjustedHours *= (priorityMultipliers[priority] || 1.0);
+        // Time multipliers: higher priority = less time (more efficient)
+        const timeMultipliers = { 1: 1.2, 2: 1.1, 3: 1.0, 4: 0.9, 5: 0.8 };
+        // Rate multipliers: higher priority = higher cost (premium resources)
+        const rateMultipliers = { 1: 0.8, 2: 0.9, 3: 1.0, 4: 1.15, 5: 1.3 };
+        
+        adjustedHours *= (timeMultipliers[priority] || 1.0);
+        taskPriorityRateMultiplier = rateMultipliers[priority] || 1.0;
       }
 
       // Apply resource productivity changes (more hours/day = higher productivity = less time needed)
@@ -552,7 +560,10 @@ class WhatIfDashboard {
       }
 
       // Calculate cost with adjusted rate (parallel execution doesn't affect cost)
-      const adjustedRate = rateSlider ? parseFloat(rateSlider.value) : (resource.hourly_rate || 85);
+      let adjustedRate = rateSlider ? parseFloat(rateSlider.value) : (resource.hourly_rate || 85);
+      
+      // Apply task priority rate adjustment (higher priority = higher cost)
+      adjustedRate *= taskPriorityRateMultiplier;
       
       // For cost calculation, use the adjusted hours (duration/priority/productivity adjustments only)
       // Parallel execution does NOT affect the cost - tasks still require the same work hours
@@ -584,16 +595,41 @@ class WhatIfDashboard {
       let pQual = Number(this.q('#qualityPriority')?.value || 34) / 100;
       const pSum = pTime + pCost + pQual;
       if (pSum > 0) { pTime /= pSum; pCost /= pSum; pQual /= pSum; }
+      
 
-      // Apply moderate preference adjustments
-      const tilt = pTime - pCost;
-      const timeAdj = 1 - 0.1 * tilt; // Reduced from 0.2 to 0.1 for stability
-      const costAdj = 1 + 0.1 * tilt;
-      const qualTimeAdj = 1 + 0.02 * pQual; // Reduced from 0.05 to 0.02
-      const qualCostAdj = 1 + 0.05 * pQual; // Reduced from 0.10 to 0.05
+      // Apply preference adjustments based on priority sliders
+      // PREFERENCES PRIORITY SYSTEM: Opposite effect from task priorities
+      // Higher TIME priority = reduce time (accept higher cost for speed)
+      // Higher COST priority = reduce cost (accept longer time for savings)  
+      // Higher QUALITY priority = improve both metrics slightly
+      
+      let timeAdjustment = 1.0;
+      let costAdjustment = 1.0;
+      
+      // Time priority effect: higher time priority = faster execution but potentially higher cost
+      if (pTime > 0.35) { // If time priority is high (>35%)
+        const timeIntensity = Math.min(1.0, (pTime - 0.33) * 4); // Scale the effect, cap at 1.0
+        timeAdjustment *= (1 - 0.15 * timeIntensity); // Reduce time up to 15%
+        costAdjustment *= (1 + 0.1 * timeIntensity);  // Increase cost up to 10%
+      }
+      
+      // Cost priority effect: higher cost priority = lower cost but potentially longer time
+      if (pCost > 0.35) { // If cost priority is high (>35%)
+        const costIntensity = Math.min(1.0, (pCost - 0.33) * 4); // Scale the effect, cap at 1.0
+        costAdjustment *= (1 - 0.2 * costIntensity); // Reduce cost up to 20%
+        timeAdjustment *= (1 + 0.1 * costIntensity);  // Increase time up to 10%
+      }
+      
+      // Quality priority effect: improve both metrics slightly
+      if (pQual > 0.35) { // If quality priority is high (>35%)
+        const qualIntensity = Math.min(1.0, (pQual - 0.33) * 4); // Scale the effect, cap at 1.0
+        timeAdjustment *= (1 - 0.05 * qualIntensity); // Slight time improvement
+        costAdjustment *= (1 + 0.03 * qualIntensity);  // Slight cost increase for quality
+      }
 
-      totalHours = Math.max(0.1, totalHours * timeAdj * qualTimeAdj);
-      totalCost = Math.max(0, totalCost * costAdj * qualCostAdj);
+      totalHours = Math.max(0.1, totalHours * timeAdjustment);
+      totalCost = Math.max(0, totalCost * costAdjustment);
+      
     }
 
     // Update display
@@ -772,9 +808,13 @@ class WhatIfDashboard {
         allocatedHours = taskDurationMinutes / 60; // Standard time
       }
 
-      // Apply priority adjustments
-      const priorityMultipliers = { 1: 1.2, 2: 1.1, 3: 1.0, 4: 0.9, 5: 0.8 };
-      allocatedHours *= (priorityMultipliers[taskPriority] || 1.0);
+      // Apply task priority adjustments (same as in updateImpactPreview)
+      // Higher task priority = premium resources/skills = higher cost but faster execution
+      const timeMultipliers = { 1: 1.2, 2: 1.1, 3: 1.0, 4: 0.9, 5: 0.8 };
+      const rateMultipliers = { 1: 0.8, 2: 0.9, 3: 1.0, 4: 1.15, 5: 1.3 };
+      
+      allocatedHours *= (timeMultipliers[taskPriority] || 1.0);
+      const taskPriorityRateMultiplier = rateMultipliers[taskPriority] || 1.0;
 
       // Note: Parallel execution affects scheduling/time but NOT the work hours or cost
       // Each task still requires the same amount of work regardless of parallel execution
@@ -782,8 +822,9 @@ class WhatIfDashboard {
       // Update resource usage tracking
       resourceUsage.set(selectedResource.id, resourceUsage.get(selectedResource.id) + allocatedHours);
 
-      // Cost calculation uses the full allocated hours - parallel execution doesn't reduce work required
-      const cost = allocatedHours * (selectedResource.hourly_rate || 85);
+      // Cost calculation with task priority rate adjustment
+      const adjustedRate = (selectedResource.hourly_rate || 85) * taskPriorityRateMultiplier;
+      const cost = allocatedHours * adjustedRate;
 
       newAllocations.push({
         task_id: task.id,
@@ -791,7 +832,7 @@ class WhatIfDashboard {
         resource_id: selectedResource.id,
         resource_name: selectedResource.name,
         hours_allocated: Math.max(0.1, allocatedHours), // Minimum 0.1 hours
-        hourly_rate: selectedResource.hourly_rate || 85,
+        hourly_rate: adjustedRate,
         total_cost: cost,
         start_time: originalAssignment.start_time || 0,
         priority: taskPriority,
@@ -1016,9 +1057,15 @@ class WhatIfDashboard {
     const baseQualityScore = this.bestScenarioBaseline.quality_score * 100;
     const adjustedQualityScore = baseQualityScore * (1 + 0.1 * pQual); // Up to +10% for max quality priority
 
+    // Get the original values from the Best Scenario display to ensure consistency
+    const originalDurationEl = this.q('#scenarioDuration');
+    const originalCostEl = this.q('#scenarioCost');
+    const originalDurationHours = originalDurationEl ? parseFloat(originalDurationEl.textContent) : this.bestScenarioBaseline.total_time_days;
+    const originalCostValue = originalCostEl ? parseFloat(originalCostEl.textContent.replace('$', '').replace(/,/g, '')) : this.bestScenarioBaseline.total_cost;
+    
     const metrics = [
-      { label: 'Duration (minutes)', original: this.bestScenarioBaseline.total_time_days * 8 * 60, current: Number.isFinite(currentDurationMinutes) ? currentDurationMinutes : this.bestScenarioBaseline.total_time_days * 8 * 60 },
-      { label: 'Total Cost', original: this.bestScenarioBaseline.total_cost, current: Number.isFinite(currentCost) ? currentCost : this.bestScenarioBaseline.total_cost },
+      { label: 'Duration (minutes)', original: originalDurationHours * 60, current: Number.isFinite(currentDurationMinutes) ? currentDurationMinutes : originalDurationHours * 60 },
+      { label: 'Total Cost', original: originalCostValue, current: Number.isFinite(currentCost) ? currentCost : originalCostValue },
       { label: 'Quality Score', original: baseQualityScore, current: adjustedQualityScore },
       { label: 'Resource Utilization', original: (this.bestScenarioBaseline.resource_utilization || 0.85) * 100, current: (this.bestScenarioBaseline.resource_utilization || 0.85) * 100 }
     ];
