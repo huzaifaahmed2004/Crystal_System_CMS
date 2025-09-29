@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import '../styles/process-management.css';
+import '../styles/process-creation.css';
 import '../styles/process-optimization.css';
 import Modal from '../components/ui/Modal';
 import SideTabs from '../components/layout/SideTabs';
@@ -114,14 +114,6 @@ const ProcessCreationPage = () => {
     }
   };
 
-  const onCopy = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text || '');
-      openModal('Copied', 'Text copied to clipboard');
-    } catch (_) {
-      openModal('Copy Failed', 'Unable to copy to clipboard.');
-    }
-  };
 
   const onReset = () => {
     setQuery('');
@@ -223,44 +215,61 @@ const ProcessCreationPage = () => {
               id: 'process',
               label: 'Process',
               content: (
-                <div className="role-card create-card" style={{ maxWidth: 960 }}>
+                <div className="creation-container">
                   <form onSubmit={onSubmit}>
-                    <div className="field">
-                      <label>Query</label>
-                      <textarea
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        rows={5}
-                        placeholder="Describe the process you want to create..."
-                        style={{ width: '100%', resize: 'vertical' }}
-                      />
+                    <div className="query-section">
+                      <div className="field">
+                        <label className="main-label">Describe Your Process</label>
+                        <p className="field-hint">Provide a detailed description of the process you want to create. Be specific about goals, steps, and requirements.</p>
+                        <textarea
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                          rows={6}
+                          placeholder="Example: Create a customer onboarding process that includes account setup, document verification, welcome email sequence, and initial support contact..."
+                          className="query-input"
+                        />
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="primary-btn" type="submit" disabled={loading}>
-                        {loading ? 'Creating...' : 'Create Process'}
+                    <div className="action-buttons">
+                      <button className="create-btn" type="submit" disabled={loading}>
+                        {loading ? (
+                          <>
+                            <span className="spinner"></span>
+                            Creating Process...
+                          </>
+                        ) : (
+                          <>
+                            Create Process
+                          </>
+                        )}
                       </button>
-                      <button className="secondary-btn" type="button" onClick={onReset} disabled={loading}>
-                        Reset
-                      </button>
+                      {(result || query) && (
+                        <button className="reset-btn" type="button" onClick={onReset} disabled={loading}>
+                          Start Over
+                        </button>
+                      )}
                     </div>
                   </form>
 
                   {result && (
-                    <div style={{ marginTop: 16 }}>
-                      <div className="section-title" style={{ marginBottom: 8 }}>Generated Result</div>
-                      <div className="field">
-                        <label>Name</label>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input type="text" value={result.name} readOnly style={{ flex: 1 }} />
-                          <button className="secondary-btn" onClick={() => onCopy(result.name)}>Copy</button>
+                    <div className="result-section">
+                      <div className="section-title">Process Created Successfully</div>
+                      <div className="result-card">
+                        <div className="field">
+                          <label>Process Name</label>
+                          <div className="result-display name">
+                            {result.name}
+                          </div>
+                        </div>
+                        <div className="field">
+                          <label>Process Description</label>
+                          <div className="result-display description">
+                            {result.description}
+                          </div>
                         </div>
                       </div>
-                      <div className="field">
-                        <label>Description</label>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <textarea value={result.description} readOnly rows={14} style={{ flex: 1 }} />
-                          <button className="secondary-btn" onClick={() => onCopy(result.description)}>Copy</button>
-                        </div>
+                      <div className="next-step-hint">
+                        Next: Go to the Tasks tab to generate process tasks
                       </div>
                     </div>
                   )}
@@ -271,47 +280,62 @@ const ProcessCreationPage = () => {
               id: 'tasks',
               label: 'Tasks',
               content: (
-                <div className="role-card" style={{ maxWidth: 1040 }}>
+                <div className="tab-container">
                   {!tasksResult ? (
-                    <div className="no-results">Generate a process first, then click Create Tasks to see the list below.</div>
+                    <div className="empty-state">
+                      <div className="empty-icon">T</div>
+                      <h3>No Tasks Generated Yet</h3>
+                      <p>Generate a process first, then tasks will appear here automatically.</p>
+                    </div>
                   ) : (
-                    <div style={{ display: 'grid', gap: 12 }}>
-                      <div>
-                        <div className="section-title" style={{ marginBottom: 8 }}>Tasks</div>
-                        <div style={{ display: 'grid', gap: 6 }}>
+                    <div className="content-layout">
+                      <div className="list-section">
+                        <div className="section-header">
+                          <h3>Generated Tasks</h3>
+                          <div className="count-badge">{(tasksResult.tasks || []).length} tasks</div>
+                        </div>
+                        <div className="item-grid">
                           {(tasksResult.tasks || []).map((t, i) => (
                             <button
                               key={i}
                               type="button"
                               onClick={() => setSelectedTaskIndex(i)}
-                              className={`list-row ${selectedTaskIndex === i ? 'selected' : ''}`}
-                              style={{
-                                textAlign: 'left',
-                                padding: '8px 12px',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 8,
-                                background: selectedTaskIndex === i ? '#f3f4f6' : 'white'
-                              }}
+                              className={`item-card ${selectedTaskIndex === i ? 'selected' : ''}`}
                             >
-                              {t?.name || `Task ${i + 1}`}
+                              <div className="item-header">
+                                <span className="item-number">#{i + 1}</span>
+                                <div className="item-status">Task</div>
+                              </div>
+                              <h4 className="item-title">{t?.name || `Task ${i + 1}`}</h4>
                             </button>
                           ))}
                           {(!tasksResult.tasks || tasksResult.tasks.length === 0) && (
-                            <div className="no-results">No tasks returned.</div>
+                            <div className="empty-state small">
+                              <p>No tasks returned from the server.</p>
+                            </div>
                           )}
                         </div>
                       </div>
 
                       {selectedTaskIndex != null && (tasksResult.tasks || [])[selectedTaskIndex] && (
-                        <div className="role-card" style={{ padding: 12 }}>
-                          <div className="section-title" style={{ marginBottom: 8 }}>Selected Task Details</div>
-                          <div className="field">
-                            <label>Name</label>
-                            <input type="text" value={(tasksResult.tasks[selectedTaskIndex]?.name) || ''} readOnly />
+                        <div className="detail-section">
+                          <div className="detail-header">
+                            <h3>Task Details</h3>
+                            <div className="detail-badge">Task #{selectedTaskIndex + 1}</div>
                           </div>
-                          <div className="field">
-                            <label>Description</label>
-                            <textarea value={(tasksResult.tasks[selectedTaskIndex]?.description) || ''} readOnly rows={12} />
+                          <div className="detail-content">
+                            <div className="detail-field">
+                              <label>Task Name</label>
+                              <div className="detail-value name">
+                                {(tasksResult.tasks[selectedTaskIndex]?.name) || ''}
+                              </div>
+                            </div>
+                            <div className="detail-field">
+                              <label>Task Description</label>
+                              <div className="detail-value description">
+                                {(tasksResult.tasks[selectedTaskIndex]?.description) || ''}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -324,67 +348,102 @@ const ProcessCreationPage = () => {
               id: 'jobs',
               label: 'Jobs',
               content: (
-                <div className="role-card" style={{ maxWidth: 1040 }}>
-                  <div className="section-title" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Jobs</span>
+                <div className="tab-container">
+                  <div className="tab-header">
+                    <div className="tab-title">
+                      <h2>Jobs</h2>
+                      <p>Jobs group related tasks together for efficient execution</p>
+                    </div>
                     {!jobsResult && (
-                      <button type="button" className="primary-btn sm" onClick={onCreateJobs} disabled={creatingJobs || !tasksResult}>
-                        {creatingJobs ? 'Creating Jobs…' : 'Create Jobs'}
+                      <button type="button" className="generate-btn" onClick={onCreateJobs} disabled={creatingJobs || !tasksResult}>
+                        {creatingJobs ? (
+                          <>
+                            <span className="spinner"></span>
+                            Generating Jobs...
+                          </>
+                        ) : (
+                          <>
+                            Generate Jobs
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
 
                   {!tasksResult && !jobsResult && (
-                    <div className="no-results">Generate tasks first, then click Create Jobs to see suggestions here.</div>
+                    <div className="empty-state">
+                      <div className="empty-icon">J</div>
+                      <h3>Tasks Required First</h3>
+                      <p>Generate tasks first, then jobs will be created to organize them efficiently.</p>
+                    </div>
                   )}
 
                   {jobsResult && (
-                    <div style={{ display: 'grid', gap: 12 }}>
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        {(jobsResult.jobs || []).map((j, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setSelectedJobIndex(i)}
-                            className={`list-row ${selectedJobIndex === i ? 'selected' : ''}`}
-                            style={{
-                              textAlign: 'left',
-                              padding: '8px 12px',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 8,
-                              background: selectedJobIndex === i ? '#f3f4f6' : 'white'
-                            }}
-                          >
-                            {j?.name || `Job ${i + 1}`}
-                          </button>
-                        ))}
-                        {(!jobsResult.jobs || jobsResult.jobs.length === 0) && (
-                          <div className="no-results">No jobs returned.</div>
-                        )}
+                    <div className="content-layout">
+                      <div className="list-section">
+                        <div className="section-header">
+                          <h3>Generated Jobs</h3>
+                          <div className="count-badge">{(jobsResult.jobs || []).length} jobs</div>
+                        </div>
+                        <div className="item-grid">
+                          {(jobsResult.jobs || []).map((j, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setSelectedJobIndex(i)}
+                              className={`item-card ${selectedJobIndex === i ? 'selected' : ''}`}
+                            >
+                              <div className="item-header">
+                                <span className="item-number">#{i + 1}</span>
+                                <div className="item-status job">Job</div>
+                              </div>
+                              <h4 className="item-title">{j?.name || `Job ${i + 1}`}</h4>
+                            </button>
+                          ))}
+                          {(!jobsResult.jobs || jobsResult.jobs.length === 0) && (
+                            <div className="empty-state small">
+                              <p>No jobs returned from the server.</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {selectedJobIndex != null && (jobsResult.jobs || [])[selectedJobIndex] && (
-                        <div className="role-card" style={{ padding: 12 }}>
-                          <div className="section-title" style={{ marginBottom: 8 }}>Selected Job Details</div>
-                          <div className="field">
-                            <label>Name</label>
-                            <input type="text" value={(jobsResult.jobs[selectedJobIndex]?.name) || ''} readOnly />
+                        <div className="detail-section">
+                          <div className="detail-header">
+                            <h3>Job Details</h3>
+                            <div className="detail-badge job">Job #{selectedJobIndex + 1}</div>
                           </div>
-                          <div className="field">
-                            <label>Description</label>
-                            <textarea value={(jobsResult.jobs[selectedJobIndex]?.description) || ''} readOnly rows={12} />
-                          </div>
-                          <div className="field">
-                            <label>Task(s) Performed</label>
-                            <div style={{ display: 'grid', gap: 6 }}>
-                              {((jobsResult.jobs[selectedJobIndex]?.task_indices) || []).map((idx, k) => (
-                                <div key={k} className="list-row" style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                                  {tasksResult?.tasks?.[idx]?.name || tasksResult?.task_names?.[idx] || `Task #${idx + 1}`}
-                                </div>
-                              ))}
-                              {(!jobsResult.jobs[selectedJobIndex]?.task_indices || jobsResult.jobs[selectedJobIndex].task_indices.length === 0) && (
-                                <div className="no-results">No related tasks listed.</div>
-                              )}
+                          <div className="detail-content">
+                            <div className="detail-field">
+                              <label>Job Name</label>
+                              <div className="detail-value name">
+                                {(jobsResult.jobs[selectedJobIndex]?.name) || ''}
+                              </div>
+                            </div>
+                            <div className="detail-field">
+                              <label>Job Description</label>
+                              <div className="detail-value description">
+                                {(jobsResult.jobs[selectedJobIndex]?.description) || ''}
+                              </div>
+                            </div>
+                            <div className="detail-field">
+                              <label>Related Tasks</label>
+                              <div className="related-items">
+                                {((jobsResult.jobs[selectedJobIndex]?.task_indices) || []).map((idx, k) => (
+                                  <div key={k} className="related-item task">
+                                    <span className="related-icon">T</span>
+                                    <span className="related-name">
+                                      {tasksResult?.tasks?.[idx]?.name || tasksResult?.task_names?.[idx] || `Task #${idx + 1}`}
+                                    </span>
+                                  </div>
+                                ))}
+                                {(!jobsResult.jobs[selectedJobIndex]?.task_indices || jobsResult.jobs[selectedJobIndex].task_indices.length === 0) && (
+                                  <div className="empty-state small">
+                                    <p>No related tasks found.</p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -398,67 +457,102 @@ const ProcessCreationPage = () => {
               id: 'functions',
               label: 'Functions',
               content: (
-                <div className="role-card" style={{ maxWidth: 1040 }}>
-                  <div className="section-title" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Functions</span>
+                <div className="tab-container">
+                  <div className="tab-header">
+                    <div className="tab-title">
+                      <h2>Functions</h2>
+                      <p>Functions define the specific capabilities needed to execute jobs</p>
+                    </div>
                     {!functionsResult && (
-                      <button type="button" className="primary-btn sm" onClick={onCreateFunctions} disabled={creatingFunctions || !jobsResult}>
-                        {creatingFunctions ? 'Creating Functions…' : 'Create Functions'}
+                      <button type="button" className="generate-btn" onClick={onCreateFunctions} disabled={creatingFunctions || !jobsResult}>
+                        {creatingFunctions ? (
+                          <>
+                            <span className="spinner"></span>
+                            Generating Functions...
+                          </>
+                        ) : (
+                          <>
+                            Generate Functions
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
 
                   {!jobsResult && !functionsResult && (
-                    <div className="no-results">Generate jobs first, then click Create Functions to see suggestions here.</div>
+                    <div className="empty-state">
+                      <div className="empty-icon">F</div>
+                      <h3>Jobs Required First</h3>
+                      <p>Generate jobs first, then functions will be created to define the capabilities needed.</p>
+                    </div>
                   )}
 
                   {functionsResult && (
-                    <div style={{ display: 'grid', gap: 12 }}>
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        {(functionsResult.functions || []).map((f, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setSelectedFunctionIndex(i)}
-                            className={`list-row ${selectedFunctionIndex === i ? 'selected' : ''}`}
-                            style={{
-                              textAlign: 'left',
-                              padding: '8px 12px',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 8,
-                              background: selectedFunctionIndex === i ? '#f3f4f6' : 'white'
-                            }}
-                          >
-                            {f?.name || `Function ${i + 1}`}
-                          </button>
-                        ))}
-                        {(!functionsResult.functions || functionsResult.functions.length === 0) && (
-                          <div className="no-results">No functions returned.</div>
-                        )}
+                    <div className="content-layout">
+                      <div className="list-section">
+                        <div className="section-header">
+                          <h3>Generated Functions</h3>
+                          <div className="count-badge">{(functionsResult.functions || []).length} functions</div>
+                        </div>
+                        <div className="item-grid">
+                          {(functionsResult.functions || []).map((f, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setSelectedFunctionIndex(i)}
+                              className={`item-card ${selectedFunctionIndex === i ? 'selected' : ''}`}
+                            >
+                              <div className="item-header">
+                                <span className="item-number">#{i + 1}</span>
+                                <div className="item-status function">Function</div>
+                              </div>
+                              <h4 className="item-title">{f?.name || `Function ${i + 1}`}</h4>
+                            </button>
+                          ))}
+                          {(!functionsResult.functions || functionsResult.functions.length === 0) && (
+                            <div className="empty-state small">
+                              <p>No functions returned from the server.</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {selectedFunctionIndex != null && (functionsResult.functions || [])[selectedFunctionIndex] && (
-                        <div className="role-card" style={{ padding: 12 }}>
-                          <div className="section-title" style={{ marginBottom: 8 }}>Selected Function Details</div>
-                          <div className="field">
-                            <label>Name</label>
-                            <input type="text" value={(functionsResult.functions[selectedFunctionIndex]?.name) || ''} readOnly />
+                        <div className="detail-section">
+                          <div className="detail-header">
+                            <h3>Function Details</h3>
+                            <div className="detail-badge function">Function #{selectedFunctionIndex + 1}</div>
                           </div>
-                          <div className="field">
-                            <label>Description</label>
-                            <textarea value={(functionsResult.functions[selectedFunctionIndex]?.description) || ''} readOnly rows={12} />
-                          </div>
-                          <div className="field">
-                            <label>Job(s) Linked</label>
-                            <div style={{ display: 'grid', gap: 6 }}>
-                              {((functionsResult.functions[selectedFunctionIndex]?.job_indices) || []).map((idx, k) => (
-                                <div key={k} className="list-row" style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                                  {jobsResult?.jobs?.[idx]?.name || `Job #${idx + 1}`}
-                                </div>
-                              ))}
-                              {(!functionsResult.functions[selectedFunctionIndex]?.job_indices || functionsResult.functions[selectedFunctionIndex].job_indices.length === 0) && (
-                                <div className="no-results">No related jobs listed.</div>
-                              )}
+                          <div className="detail-content">
+                            <div className="detail-field">
+                              <label>Function Name</label>
+                              <div className="detail-value name">
+                                {(functionsResult.functions[selectedFunctionIndex]?.name) || ''}
+                              </div>
+                            </div>
+                            <div className="detail-field">
+                              <label>Function Description</label>
+                              <div className="detail-value description">
+                                {(functionsResult.functions[selectedFunctionIndex]?.description) || ''}
+                              </div>
+                            </div>
+                            <div className="detail-field">
+                              <label>Related Jobs</label>
+                              <div className="related-items">
+                                {((functionsResult.functions[selectedFunctionIndex]?.job_indices) || []).map((idx, k) => (
+                                  <div key={k} className="related-item job">
+                                    <span className="related-icon">J</span>
+                                    <span className="related-name">
+                                      {jobsResult?.jobs?.[idx]?.name || `Job #${idx + 1}`}
+                                    </span>
+                                  </div>
+                                ))}
+                                {(!functionsResult.functions[selectedFunctionIndex]?.job_indices || functionsResult.functions[selectedFunctionIndex].job_indices.length === 0) && (
+                                  <div className="empty-state small">
+                                    <p>No related jobs found.</p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>

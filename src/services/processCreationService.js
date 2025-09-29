@@ -3,7 +3,7 @@ import api from './api';
 // Base URL for Process Creation service
 // Configure in .env.local: REACT_APP_Create_Process_URL
 const CREATE_BASE_URL = process.env.REACT_APP_Create_Process_URL || '';
-
+const Visualization_BASE_URL = process.env.REACT_APP_Visualize_Process_URL || '';
 // POST /processcreation
 // body: { query: string }
 
@@ -11,7 +11,7 @@ const CREATE_BASE_URL = process.env.REACT_APP_Create_Process_URL || '';
 // input: { process_name: string, tasks: string[] }
 // returns: object URL to PNG image rendering the task sequence
 export async function getProcessSequenceImage(body, format = 'png') {
-  const endpoint = `${CREATE_BASE_URL}/processsequence/image?format=${encodeURIComponent(format || 'png')}`;
+  const endpoint = `${Visualization_BASE_URL}/processsequence/image?format=${encodeURIComponent(format || 'png')}`;
   let token = null;
   try {
     const raw = sessionStorage.getItem('auth');
@@ -87,7 +87,7 @@ export async function createJobFunctions(body) {
 // input shape matches the provided structure combining process_name, tasks, jobs, functions
 // returns: an object URL to a PNG image for visualization
 export async function getProcessGraphImage(body, format = 'png') {
-  const endpoint = `${CREATE_BASE_URL}/processgraph/image?format=${encodeURIComponent(format || 'png')}`;
+  const endpoint = `${Visualization_BASE_URL}/processgraph/image?format=${encodeURIComponent(format || 'png')}`;
   // Build auth header similar to other services
   let token = null;
   try {

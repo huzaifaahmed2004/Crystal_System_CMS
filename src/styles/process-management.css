@@ -385,6 +385,7 @@
   background: #fecaca;
 }
 
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .header-content {
@@ -431,4 +432,5 @@
     align-items: flex-start;
     gap: 16px;
   }
+
 }
