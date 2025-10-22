@@ -1,0 +1,41 @@
+/* Drag & Drop zone for Excel import */
+.dropzone {
+  border: 2px dashed #93c5fd;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 14px;
+  padding: 28px;
+  text-align: center;
+  color: #334155;
+  transition: all 0.25s ease;
+}
+.dropzone.drag-active {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
+}
+.hidden-input { display: none; }
+.dropzone-content { display: grid; gap: 8px; justify-items: center; }
+.dz-icon { font-size: 40px; }
+.dz-title { font-weight: 700; }
+.dz-subtitle { font-size: 0.9rem; color: #64748b; }
+.dz-browse {
+  appearance: none;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.dz-browse:disabled { opacity: 0.6; cursor: not-allowed; }
+.dz-hint { font-size: 0.85rem; color: #64748b; }
+
+.import-error {
+  margin-bottom: 12px;
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 10px 12px;
+  border-radius: 10px;
+}

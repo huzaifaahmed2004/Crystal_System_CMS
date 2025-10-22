@@ -16,13 +16,16 @@ class ApiService {
       }
     } catch (_) {}
 
+    const isFormData = options && options.body instanceof FormData;
+    const headers = {
+      'Accept': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    };
+
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
+      headers,
       ...options,
     };
 

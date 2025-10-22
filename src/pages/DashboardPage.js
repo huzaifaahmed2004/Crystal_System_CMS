@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { getCompaniesWithRelations } from '../services/companyService';
 import { getProcessesWithRelations } from '../services/processService';
+import { importDashboardExcel } from '../services/dashboardService';
+import '../styles/dashboard-actions.css';
+import ExcelImportModal from '../components/ui/ExcelImportModal';
+import ExportProcessesModal from '../components/ui/ExportProcessesModal';
 
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({ companies: 0, processes: 0, tasks: 0, jobs: 0 });
+  const [importOpen, setImportOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [importError, setImportError] = useState(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -45,9 +53,38 @@ const DashboardPage = () => {
   return (
     <div className="dashboard-content-area">
       <div className="dashboard-header-section">
-        <h2 className="dashboard-title">Dashboard Overview</h2>
+        <div className="dashboard-title-row">
+          <h2 className="dashboard-title">Dashboard Overview</h2>
+          <div className="dashboard-actions">
+            <button type="button" className="btn btn-import" onClick={() => { setImportError(null); setImportOpen(true); }}>Import Data</button>
+            <button type="button" className="btn btn-export" onClick={() => setExportOpen(true)}>Export Data</button>
+          </div>
+        </div>
         <p className="dashboard-subtitle">Quick overview of key CMS metrics</p>
       </div>
+
+      <ExcelImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        uploading={uploading}
+        error={importError}
+        onFileSelected={async (file) => {
+          setUploading(true);
+          setImportError(null);
+          try {
+            await importDashboardExcel(file);
+            setImportOpen(false);
+            // Optional: reload stats after successful import
+            // You can trigger a refetch here if backend affects these counts immediately.
+          } catch (e) {
+            setImportError(e?.message || 'Upload failed');
+          } finally {
+            setUploading(false);
+          }
+        }}
+      />
+
+      <ExportProcessesModal open={exportOpen} onClose={() => setExportOpen(false)} />
 
       {/* System Stats Widgets (real data) */}
       {loading && (
