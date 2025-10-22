@@ -1,0 +1,44 @@
+/* Styles for the Dashboard Overview title row and action buttons */
+
+.dashboard-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dashboard-title-row .dashboard-title {
+  margin: 0;
+}
+
+.dashboard-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.btn-import {
+  background-color: #eef2ff;
+  color: #1e3a8a;
+  border: 1px solid #c7d2fe;
+}
+.btn-import:hover {
+  background-color: #e0e7ff;
+}
+
+.btn-export {
+  background-color: #1d4ed8;
+  color: #ffffff;
+  border: none;
+}
+.btn-export:hover {
+  background-color: #1e40af;
+}
