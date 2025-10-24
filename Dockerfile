@@ -14,7 +14,19 @@ COPY . .
 
 # Build arguments for environment variables
 ARG REACT_APP_API_URL
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ARG REACT_APP_BASE_URL
+ARG REACT_APP_WHATIF_API_URL
+ARG REACT_APP_PROCESS_OPT_BASE_URL
+ARG REACT_APP_Create_Process_URL
+ARG REACT_APP_Visualize_Process_URL
+
+# Expose as env so CRA can read them at build time
+ENV REACT_APP_API_URL=$REACT_APP_API_URL \
+    REACT_APP_BASE_URL=$REACT_APP_BASE_URL \
+    REACT_APP_WHATIF_API_URL=$REACT_APP_WHATIF_API_URL \
+    REACT_APP_PROCESS_OPT_BASE_URL=$REACT_APP_PROCESS_OPT_BASE_URL \
+    REACT_APP_Create_Process_URL=$REACT_APP_Create_Process_URL \
+    REACT_APP_Visualize_Process_URL=$REACT_APP_Visualize_Process_URL
 
 # Build the app
 RUN npm run build
