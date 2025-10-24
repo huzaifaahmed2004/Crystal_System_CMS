@@ -9,6 +9,8 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci --only=production=false
 
+
+#aa
 # Copy source code
 COPY . .
 
